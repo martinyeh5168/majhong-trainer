@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>台灣16張麻將訓練</title>
+  <link rel="stylesheet" href="web/style.css" />
+
+  <!-- PWA:加入主畫面後有自己的圖示、全螢幕啟動、離線也能用 -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="web/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="web/icons/apple-touch-icon.png" />
+  <meta name="theme-color" content="#1f6b4a" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="麻將訓練" />
+</head>
+<body>
+  <div class="app">
+    <button id="home-btn" type="button">← 首頁</button>
+    <div id="version-badge">v1.1</div>
+
+    <div id="app-header">
+      <h1>台灣 16 張麻將訓練</h1>
+      <p class="subtitle">情境判斷題庫 —— 練切牌測驗、聽牌測驗、台數測驗、防守測驗</p>
+
+      <div class="filters">
+        <button class="filter-btn active" data-filter="all">全部</button>
+        <button class="filter-btn" data-filter="efficiency">切牌測驗</button>
+        <button class="filter-btn" data-filter="wait">聽牌測驗</button>
+        <button class="filter-btn" data-filter="scoring">台數測驗</button>
+        <button class="filter-btn" data-filter="safety">防守測驗</button>
+        <button class="filter-btn" data-filter="analysis">弱點分析</button>
+        <button class="filter-btn" data-filter="review">重點複習</button>
+        <button class="filter-btn" data-filter="play">人機對局</button>
+        <button class="filter-btn" data-filter="practice">隨機練習</button>
+        <button class="filter-btn" data-filter="match">麻將實戰</button>
+      </div>
+
+      <div id="scoreboard"></div>
+    </div>
+
+    <div id="question-card" class="card"></div>
+
+    <div id="progress"></div>
+    <button id="next-btn" hidden>下一題</button>
+  </div>
+
+  <script type="module" src="web/app.js"></script>
+  <script>
+    // 註冊 service worker,離線也能開、加入主畫面後才有完整 PWA 體驗;
+    // 失敗就算了(例如某些內嵌瀏覽器不支援),不影響網頁本身正常使用。
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

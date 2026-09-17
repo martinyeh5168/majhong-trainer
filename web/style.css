@@ -1,0 +1,856 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f3ee;
+  --card-bg: #ffffff;
+  --text: #1f1b16;
+  --muted: #6b6258;
+  --border: #ddd4c6;
+  --accent: #8a5a2b;
+  --tile-bg: #fffdf8;
+  --tile-border: #cbbfa8;
+  --correct: #1e8e3e;
+  --wrong: #b3261e;
+  --felt: #1f6b4a;
+  --felt-dark: #164d36;
+  --wood: #6b3f2a;
+  --gold: #d8a441;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171310;
+    --card-bg: #221d18;
+    --text: #f1ebe2;
+    --muted: #b3a795;
+    --border: #3a332a;
+    --accent: #e0a15c;
+    --tile-bg: #2a241d;
+    --tile-border: #4a4030;
+    --correct: #6fd18f;
+    --wrong: #ff8a80;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  padding: clamp(16px, 3vw, 48px);
+  padding-bottom: 48px;
+}
+
+.app {
+  /* 全螢幕展現:寬度跟著視窗走,不要卡在小小一欄,大螢幕留個上限避免單行字太長難讀 */
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: clamp(1.4rem, 1.1rem + 1.2vw, 2.1rem);
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.filter-btn {
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.filter-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* 固定在畫面左上角,不管在哪一頁、標題列有沒有隱藏都看得到、點得到 */
+#home-btn {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* 固定在畫面右上角,跟首頁按鈕對稱,不管在哪一頁都看得到目前是哪個版本 */
+#version-badge {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+
+#scoreboard {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: clamp(20px, 2vw, 40px);
+}
+
+.card h2 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+}
+
+.description {
+  color: var(--muted);
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 12px 0 6px;
+}
+
+.card h3 {
+  font-size: 1rem;
+  margin: 20px 0 6px;
+}
+
+.card ul {
+  padding-left: 20px;
+  margin: 4px 0;
+  line-height: 1.7;
+}
+
+.weak-tag {
+  color: var(--wrong);
+  font-weight: 600;
+}
+
+.tile-row {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 5px;
+  margin-bottom: 8px;
+  padding-bottom: 8px; /* 留空間給下面的捲軸,不會蓋到牌 */
+  scrollbar-width: thin; /* Firefox:一直顯示細捲軸,不要用會消失的那種 */
+  -webkit-overflow-scrolling: touch; /* iOS 慣性滑動,手機上左右滑手牌才順手 */
+  touch-action: pan-x pan-y; /* 明確允許左右滑,不會被瀏覽器誤判成要縮放頁面 */
+}
+
+.tile-row::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tile-row::-webkit-scrollbar-thumb {
+  background: var(--tile-border);
+  border-radius: 3px;
+}
+
+.tile-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tile-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.tile {
+  /* 用 vw 也用 vh 取其中較小值(min()),手機橫放時寬度雖然夠,高度很緊,
+     牌才會跟著「比較擠的那個維度」自動縮小,不會因為橫放寬度大就一路放大到卡出畫面 */
+  width: clamp(36px, min(3.2vw, 6.5vh), 68px);
+  height: clamp(48px, min(4.3vw, 8.7vh), 90px);
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid var(--tile-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  background: #fffdf6;
+}
+
+.tile-small {
+  width: clamp(28px, min(2.6vw, 5.4vh), 54px);
+  height: clamp(38px, min(3.5vw, 7.2vh), 72px);
+}
+
+.tile:disabled {
+  cursor: default;
+}
+
+.tile-selected img {
+  outline: 3px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 攤牌時,點炮胡牌贏家手牌右邊那張放槍的牌,用金色外框特別標出來 */
+/* 用比 .hand-with-melds > .tile-row 更高的優先度蓋掉它的 flex:1 320px,
+   不然這張牌會被拉伸去搶手牌那一列的空間,疊到手牌上面 */
+.hand-with-melds > .winning-tile-row {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin-left: 6px;
+}
+
+.winning-tile-row .tile img {
+  outline: 3px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.submit-btn,
+.filter-btn,
+#next-btn {
+  font-family: inherit;
+}
+
+.submit-btn,
+#next-btn {
+  margin-top: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.no-wait-btn {
+  font-family: inherit;
+  display: block;
+  margin: 4px 0 12px;
+  border: 1px solid var(--tile-border);
+  background: var(--tile-bg);
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+/* 隨機練習頁面的按鈕(確認/撤回重選/繼續/開始新一輪)一律放在手牌下面置中 */
+.practice-action-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.practice-action-row .submit-btn,
+.practice-action-row .no-wait-btn {
+  margin: 8px 0;
+}
+
+.no-wait-btn.tile-selected {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  outline: none;
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.answer-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.answer-input input {
+  width: 100px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--tile-bg);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.feedback {
+  margin-top: 16px;
+}
+
+.feedback ul {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+
+.verdict {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.verdict.correct {
+  color: var(--correct);
+}
+
+.verdict.wrong {
+  color: var(--wrong);
+}
+
+#progress {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 16px;
+}
+
+details summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+/* ---- 麻將桌(人機對局) ---- */
+
+.mahjong-table {
+  background: radial-gradient(ellipse at center, var(--felt) 0%, var(--felt-dark) 100%);
+  border: 6px solid var(--wood);
+  border-radius: 20px;
+  padding: clamp(16px, 2.4vw, 40px);
+  margin-bottom: 16px;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.35);
+}
+
+.seat-row-top {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.seat-row-bottom {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.seat-row-bottom .hand-with-melds {
+  align-items: center;
+  justify-content: center;
+}
+
+.seat-row-middle {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wall-indicator {
+  flex: 1 1 140px;
+  min-width: 120px;
+  text-align: center;
+  color: #eafff2;
+  padding-top: 8px;
+}
+
+.wall-indicator .wall-count {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.wall-tiles {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  max-width: 160px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.wall-tiles .wall-tile-back {
+  width: 12px;
+  height: 16px;
+  background: linear-gradient(135deg, #fdf6e3, #e8dcb8);
+  border: 1px solid #b7a565;
+  border-radius: 2px;
+}
+
+.seat-card {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: clamp(8px, 0.8vw, 16px) clamp(10px, 1vw, 18px);
+  max-width: 340px;
+  min-width: 0;
+  color: #eafff2;
+}
+
+/* 上家/下家:吃碰槓的面子疊在座位卡片上面 */
+.seat-with-melds-above {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 1 280px;
+  min-width: 0;
+}
+
+/* 對面:吃碰槓的面子放在座位卡片右邊 */
+.seat-with-melds-right {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.seat-melds-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 自己的面子:好幾組吃碰槓水平排成一列,不要一組一行往下疊 */
+.seat-melds-block.melds-horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* 自己的手牌:吃碰槓的面子放在手牌右邊;窄螢幕放不下就自然換到下一行 */
+.hand-with-melds {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+  /* flex 項目預設 min-width:auto,不會縮小到比內容還窄,結果整排手牌+面子+花牌
+     疊在一起太寬時,父層(.seat-row-bottom 置中)只會整塊往兩邊溢出、蓋到別的東西,
+     而不是自己換行變窄 —— 要蓋掉這個預設值才會真的換行、不溢出。 */
+  max-width: 100%;
+  min-width: 0;
+}
+
+.hand-with-melds > .tile-row {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.hand-with-melds > .seat-melds-block {
+  flex: 0 0 auto;
+}
+
+/* 自己打出去的牌放在手牌正上方,跟手牌一起置中、可以換行(不用像手牌那樣捲動) */
+.your-hand-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* 自己吃碰槓的面子、摸到的花牌:放在手牌上方,但跟置中的打出牌分開,靠右對齊 */
+.your-extras-row {
+  align-self: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.your-discard-row.tile-row-small {
+  flex-wrap: wrap;
+  justify-content: center;
+  overflow-x: visible;
+  max-width: 480px;
+}
+
+.seat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.seat-avatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+}
+
+.seat-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.seat-card.seat-dealer .seat-avatar {
+  background: var(--gold);
+  border-color: #fff3d0;
+}
+
+.seat-name-block {
+  min-width: 0;
+}
+
+.seat-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dealer-badge {
+  background: var(--gold);
+  color: #3a2a06;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.seat-meta {
+  font-size: 0.72rem;
+  color: #cfe9da;
+}
+
+.seat-card .tile-row.tile-row-small,
+.seat-melds-block .tile-row.tile-row-small {
+  margin-top: 4px;
+  margin-bottom: 2px;
+  flex-wrap: wrap;
+  overflow-x: visible;
+  padding-bottom: 0;
+}
+
+/* AI 剛打出的那張牌閃爍,提示玩家「這張牌現在正在等決定/正在展示」 */
+@keyframes tile-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.tile.tile-blink {
+  animation: tile-blink 0.8s ease-in-out infinite;
+}
+
+/* 真人可以吃碰槓的時候,選項按鈕直接放在那張閃爍棄牌的旁邊,不用跑到下面的面板 */
+.discard-with-call {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.discard-with-call .inline-call-buttons {
+  gap: 6px;
+  margin: 0;
+}
+
+.discard-with-call .inline-call-buttons .action-btn {
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  box-shadow: none;
+}
+
+.your-hand-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  /* 吃碰槓/胡/搶槓這些操作按鈕黏在畫面底部,牌桌不管多高(棄牌堆一多就會很長)
+     都不用捲動,操作按鈕永遠看得到 */
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.28);
+}
+
+/* 胡牌/流局結算後的攤牌內容很長(四家的手牌+面子+花牌),黏底反而會蓋到
+   還沒捲到的牌桌內容(尤其窄螢幕面子換行變多、牌桌變高的時候)——
+   結算畫面改回正常排版,跟著內容一起往下捲動,不要黏在底部。 */
+.your-hand-panel.your-hand-panel-result {
+  position: static;
+  z-index: auto;
+  box-shadow: none;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+.action-btn {
+  font-family: inherit;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 26px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(180deg, #e2513f, #b3261e);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+}
+
+.action-btn.action-btn-secondary {
+  background: linear-gradient(180deg, #8a7a63, #5c5040);
+}
+
+.action-btn.rounds-choice-active {
+  background: var(--accent);
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* 桌布最上方,現在打到第幾圈第幾局的進度文字,例如「東風東局」 */
+.round-progress {
+  text-align: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.action-btn.action-btn-pass {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--tile-border);
+  box-shadow: none;
+}
+
+.win-announce {
+  position: relative;
+  text-align: center;
+  padding: 18px 0 6px;
+  animation: win-pop 0.4s ease-out;
+}
+
+.win-announce .win-title {
+  font-size: 2.4rem;
+  font-weight: 800;
+  background: linear-gradient(180deg, #ffe9a8, var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  letter-spacing: 4px;
+}
+
+@keyframes win-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 麻將實戰:桌布最上方的籌碼列 */
+.chip-bar {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.chip-bar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  padding: 6px 12px;
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.chip-bar-you {
+  background: rgba(216, 164, 65, 0.35);
+  border: 1px solid var(--gold);
+}
+
+.chip-bar-name {
+  font-weight: 600;
+}
+
+.chip-bar-chips {
+  font-variant-numeric: tabular-nums;
+}
+
+.chip-bar-winrate {
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+/* 叫聽了的家,籌碼列上一個顯眼的紅底標誌,一眼就看得出誰聽牌了 */
+.tenpai-badge {
+  display: inline-block;
+  background: var(--wrong);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  letter-spacing: 1px;
+}
+
+.name-input {
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--tile-bg);
+  color: var(--text);
+}
+
+.match-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 0.85rem;
+}
+
+.match-stats-table th,
+.match-stats-table td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: center;
+}
+
+.match-stats-table .highlight-row {
+  background: rgba(216, 164, 65, 0.18);
+  font-weight: 600;
+}
+
+/* 手機橫放:寬度通常夠,但高度很緊 —— 牌桌各處的留白跟著縮,盡量不用捲動就看到操作區,
+   手牌本身的縮小交給上面 .tile/.tile-small 的 min()(取 vw/vh 較小值)機制處理 */
+@media (max-height: 480px) and (orientation: landscape) {
+  body {
+    padding: clamp(8px, 1.5vh, 16px);
+  }
+
+  .mahjong-table {
+    padding: clamp(8px, 1.2vh, 16px);
+    margin-bottom: 8px;
+  }
+
+  .seat-card {
+    padding: 4px 8px;
+  }
+
+  .seat-avatar {
+    width: 28px;
+    height: 28px;
+  }
+
+  .seat-row-top {
+    margin-bottom: 4px;
+  }
+
+  .seat-row-bottom {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .chip-bar {
+    margin-bottom: 6px;
+  }
+
+  .round-progress {
+    margin-bottom: 2px;
+    font-size: 0.85rem;
+  }
+
+  .your-hand-panel {
+    padding: 8px 12px;
+  }
+}

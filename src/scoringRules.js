@@ -1,0 +1,30 @@
+// 參考用的標準台數表,不同牌館規則可能不同,數字可以直接依你熟悉的規則修改。
+// 用 .js(不是 .json)是為了同一份檔案在 Node 測試和瀏覽器都能直接 import,不用擔心瀏覽器對 JSON import 語法支援不一致。
+
+export default {
+  base: 1,
+  menQing: 1,
+  ziMo: 1,
+  duiDuiHu: 4,
+  sanAnKe: 2,
+  siAnKe: 5,
+  wuAnKe: 8,
+  queYiMen: 1,
+  hunYiSe: 4,
+  qingYiSe: 8,
+  ziYiSe: 16,
+  xiaoSanYuan: 4,
+  daSanYuan: 8,
+  xiaoSiXi: 8,
+  daSiXi: 16,
+  huaPai: 1,
+  quanQiuRen: 2,
+  danDiao: 1,
+  bianZhang: 1,
+  kanZhang: 1,
+  tianHu: 16,
+  diHu: 8,
+  gang: 1,
+  gangShangKaiHua: 1,
+  qiangGang: 1,
+};

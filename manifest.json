@@ -1,0 +1,26 @@
+{
+  "name": "台灣16張麻將訓練",
+  "short_name": "麻將訓練",
+  "description": "台灣16張麻將情境判斷題庫、人機對局與真人對局的練習工具",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f3ee",
+  "theme_color": "#1f6b4a",
+  "lang": "zh-Hant",
+  "icons": [
+    {
+      "src": "web/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "web/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
