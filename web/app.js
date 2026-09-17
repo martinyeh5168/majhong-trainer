@@ -164,7 +164,7 @@ function tileImg(tile) {
   return img;
 }
 
-function renderTileRow(tiles, { onClick, selectedCode, small } = {}) {
+function renderTileRow(tiles, { onClick, onDoubleClick, selectedCode, small } = {}) {
   const row = document.createElement('div');
   row.className = small ? 'tile-row tile-row-small' : 'tile-row';
   for (const tile of tiles) {
@@ -176,6 +176,7 @@ function renderTileRow(tiles, { onClick, selectedCode, small } = {}) {
     btn.appendChild(tileImg(tile));
     btn.disabled = !onClick;
     if (onClick) btn.addEventListener('click', () => onClick(code, tile));
+    if (onDoubleClick) btn.addEventListener('dblclick', () => onDoubleClick(code, tile));
     row.appendChild(btn);
   }
   return row;

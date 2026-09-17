@@ -468,6 +468,12 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     render();
   }
 
+  // 在手牌上點兩下(或連續快速點兩下)直接打出那張牌,不用再按一次確認鈕
+  function discardTileDirectly(code) {
+    pendingDiscardChoice = code;
+    confirmDiscardCandidate();
+  }
+
   // 真人自己選擇要不要叫聽(聽牌狀態下才看得到這顆按鈕),叫聽之後贏的話多算一台
   function declareTenpai() {
     const mySeat = humanSeat();
@@ -1254,6 +1260,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     if (isNormalTurn) {
       handRowEl = renderTileRow(sortTiles(you.hand), {
         onClick: (code) => selectDiscardCandidate(code),
+        onDoubleClick: (code) => discardTileDirectly(code),
         selectedCode: pendingDiscardChoice ?? pendingDrewCode,
       });
     } else {
@@ -1265,7 +1272,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       confirmBtnEl = document.createElement('button');
       confirmBtnEl.type = 'button';
       confirmBtnEl.className = 'action-btn';
-      confirmBtnEl.textContent = '打出這張牌';
+      confirmBtnEl.textContent = '打出';
       confirmBtnEl.disabled = !pendingDiscardChoice;
       confirmBtnEl.addEventListener('click', confirmDiscardCandidate);
     } else if (!game.finished && !tenpaiDeclared[h] && isHandTenpai(you)) {
