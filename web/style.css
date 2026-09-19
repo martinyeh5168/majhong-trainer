@@ -398,6 +398,9 @@ details summary {
   align-items: flex-start;
   gap: 8px;
   flex-wrap: wrap;
+  /* 上家/下家的面子改成往上浮動疊加(見 .seat-with-melds-above),
+     留一點緩衝空間,避免疊比較多組時貼到上面的籌碼列 */
+  margin-top: 16px;
 }
 
 .wall-indicator {
@@ -442,13 +445,24 @@ details summary {
   color: #eafff2;
 }
 
-/* 上家/下家:吃碰槓的面子疊在座位卡片上面 */
+/* 上家/下家:吃碰槓的面子疊在座位卡片上面。
+   面子用絕對定位、貼著座位卡片的上緣往上長,不佔版面高度,
+   這樣叫牌越多次只會往上多疊,不會把座位卡片的位置往下推。 */
 .seat-with-melds-above {
   display: flex;
   flex-direction: column;
   gap: 6px;
   flex: 0 1 280px;
   min-width: 0;
+  position: relative;
+}
+
+.seat-with-melds-above .seat-melds-block {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
 }
 
 /* 對面:吃碰槓的面子放在座位卡片右邊 */

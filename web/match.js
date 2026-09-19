@@ -876,9 +876,10 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
   function buildMeldsBlock(seat) {
     const player = game.players[seat];
     const block = document.createElement('div');
-    // 橫向排、空間不夠自動換行,不要一組疊一行往下長,牌桌高度才不會隨吃碰次數暴衝
+    // 橫向排、空間不夠自動換行,不要一組疊一行往下長,牌桌高度才不會隨吃碰次數暴衝;
+    // 不顯示「碰/吃/槓」文字標籤,牌組本身的花色排列就看得出叫的是什麼,可以再省一行高度
     block.className = 'seat-melds-block melds-horizontal';
-    renderMelds(block, player, { small: true });
+    renderMelds(block, player, { small: true, showLabel: false });
     return block;
   }
 
