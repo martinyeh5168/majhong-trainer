@@ -1,7 +1,7 @@
 // 台數(番數)計算。採用標準通用台數表,數值放在 scoringRules.json 方便依牌館規則調整。
 //
 // v1 範圍已涵蓋:門清、自摸、碰碰胡、三/四/五暗刻、缺一門/混一色/清一色/字一色、
-// 小/大三元、小/大四喜、花牌、全求人、聽牌型態獎勵(邊張/坎張/單吊)、
+// 小/大三元、小/大四喜、花牌(正花/花槓)、全求人、聽牌型態獎勵(邊張/坎張/單吊)、
 // 天胡/地胡、槓相關台數(槓/槓上開花/搶槓)。
 //
 // 連莊/莊家加成不放在這裡:那是跨局的「場次」概念(連續當莊的次數),
@@ -130,8 +130,19 @@ function scoreDecomposition(decomposition, hand, context, winningTileCode, waitC
   if (windTriplets === 4) add('daSiXi', '大四喜', rules.daSiXi);
   else if (windTriplets === 3 && pairIsWind) add('xiaoSiXi', '小四喜', rules.xiaoSiXi);
 
-  const flowerCount = (context.flowers ?? []).length;
-  if (flowerCount > 0) add('huaPai', `花牌 x${flowerCount}`, rules.huaPai * flowerCount);
+  // 花牌:只有「正花」算台(自己座位對應的那張,梅蘭菊竹/春夏秋冬用同一個座位順序,
+  // rank 1~4 對應座位 0~3、rank 5~8 也對應座位 0~3),別人座位的花不計台。
+  // 另外集滿同一套(梅蘭菊竹全部,或春夏秋冬全部)算花槓,不管是不是正花都額外加台。
+  const flowers = context.flowers ?? [];
+  if (flowers.length > 0 && typeof context.seat === 'number') {
+    const ownFlowerCount = flowers.filter((f) => (f.rank - 1) % 4 === context.seat).length;
+    if (ownFlowerCount > 0) add('huaPai', `正花 x${ownFlowerCount}`, rules.huaPai * ownFlowerCount);
+
+    const hasFullSet = (startRank) =>
+      [0, 1, 2, 3].every((offset) => flowers.some((f) => f.rank === startRank + offset));
+    const huaGangSets = (hasFullSet(1) ? 1 : 0) + (hasFullSet(5) ? 1 : 0);
+    if (huaGangSets > 0) add('huaGang', `花槓 x${huaGangSets}`, rules.huaGang * huaGangSets);
+  }
 
   const total = items.reduce((sum, it) => sum + it.tai, 0);
   return { items, total };
@@ -140,7 +151,7 @@ function scoreDecomposition(decomposition, hand, context, winningTileCode, waitC
 /**
  * hand = { concealedTiles: Tile[] (胡牌前16張,含melds外的手牌), melds?: [...] }
  * winningTile = Tile
- * context = { selfDrawn: boolean, flowers?: Tile[] }
+ * context = { selfDrawn: boolean, seat?: number (0~3,用來判斷正花), flowers?: Tile[] }
  *
  * 一手牌可能有不只一種拆法(例如可拆成不同的順子/刻子組合),
  * 依照慣例採計「台數最高」的那一種拆法。

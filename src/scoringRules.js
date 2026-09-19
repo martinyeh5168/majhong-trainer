@@ -18,6 +18,7 @@ export default {
   xiaoSiXi: 8,
   daSiXi: 16,
   huaPai: 1,
+  huaGang: 2,
   quanQiuRen: 2,
   danDiao: 1,
   bianZhang: 1,

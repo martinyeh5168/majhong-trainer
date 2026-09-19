@@ -435,7 +435,7 @@ export function applyChankan(game, winnerSeat, kanSeat, tile) {
   const score = computeScore(
     { concealedTiles: winner.hand, melds: winner.melds },
     tile,
-    { selfDrawn: false, isDealer: winner.seat === 0, isFirstTurn: false, isChankan: true, flowers: winner.flowers }
+    { selfDrawn: false, isDealer: winner.seat === 0, seat: winner.seat, isFirstTurn: false, isChankan: true, flowers: winner.flowers }
   );
   game.finished = true;
   game.result = { type: 'ron', winnerSeat, discarderSeat: kanSeat, tile, score, chankan: true };
@@ -500,7 +500,7 @@ export function applyRon(game, winnerSeat, discarderSeat, tile) {
   const score = computeScore(
     { concealedTiles: winner.hand, melds: winner.melds },
     tile,
-    { selfDrawn: false, isDealer: winner.seat === 0, isFirstTurn: false, flowers: winner.flowers }
+    { selfDrawn: false, isDealer: winner.seat === 0, seat: winner.seat, isFirstTurn: false, flowers: winner.flowers }
   );
   game.finished = true;
   game.result = { type: 'ron', winnerSeat, discarderSeat, tile, score };
@@ -522,6 +522,7 @@ export function declareTsumo(game, context = {}) {
     {
       selfDrawn: true,
       isDealer: player.seat === 0,
+      seat: player.seat,
       isFirstTurn,
       isRinshan: !!context.isRinshan,
       flowers: player.flowers,
