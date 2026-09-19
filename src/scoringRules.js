@@ -9,7 +9,6 @@ export default {
   sanAnKe: 2,
   siAnKe: 5,
   wuAnKe: 8,
-  queYiMen: 1,
   hunYiSe: 4,
   qingYiSe: 8,
   ziYiSe: 16,

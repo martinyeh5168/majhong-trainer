@@ -1,8 +1,8 @@
 // 台數(番數)計算。採用標準通用台數表,數值放在 scoringRules.json 方便依牌館規則調整。
 //
-// v1 範圍已涵蓋:門清、自摸、碰碰胡、三/四/五暗刻、缺一門/混一色/清一色/字一色、
+// v1 範圍已涵蓋:門清、自摸、碰碰胡、三/四/五暗刻、混一色/清一色/字一色、
 // 小/大三元、小/大四喜、花牌(正花/花槓)、全求人、聽牌型態獎勵(邊張/坎張/單吊)、
-// 天胡/地胡、槓相關台數(槓/槓上開花/搶槓)。
+// 天胡/地胡、槓相關台數(槓/槓上開花/搶槓)。不計缺一門。
 //
 // 連莊/莊家加成不放在這裡:那是跨局的「場次」概念(連續當莊的次數),
 // 不是單一手牌牌型能決定的東西,等做完整對局功能時再另外處理。
@@ -114,7 +114,6 @@ function scoreDecomposition(decomposition, hand, context, winningTileCode, waitC
   if (suitsUsed.size === 0) add('ziYiSe', '字一色', rules.ziYiSe);
   else if (suitsUsed.size === 1 && !hasHonor) add('qingYiSe', '清一色', rules.qingYiSe);
   else if (suitsUsed.size === 1 && hasHonor) add('hunYiSe', '混一色', rules.hunYiSe);
-  else if (suitsUsed.size === 2) add('queYiMen', '缺一門', rules.queYiMen);
 
   const dragonTriplets = decomposition.groups.filter(
     (g) => g.type === 'triplet' && isDragonCode(g.tiles[0])

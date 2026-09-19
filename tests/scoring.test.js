@@ -55,12 +55,12 @@ test('字一色 + 大四喜同時成立(東南西北四組刻子 + 中發對子)
   assert.equal(tai(score.items, 'daSiXi'), 16);
 });
 
-test('缺一門(只用萬和筒兩種花色,不含字牌)', () => {
+test('用兩種花色(不含字牌)胡牌,不計缺一門,也不算清一色/混一色', () => {
   // 123m 456m + 123p 456p 789p + 對子99m,缺一張 9p
   const concealedTiles = parseHand('12345699m12345678p');
   const winningTile = { suit: 'p', rank: 9 };
   const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: true });
-  assert.equal(tai(score.items, 'queYiMen'), 1);
+  assert.equal(tai(score.items, 'queYiMen'), 0);
   assert.equal(tai(score.items, 'qingYiSe'), 0);
   assert.equal(tai(score.items, 'hunYiSe'), 0);
 });
