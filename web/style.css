@@ -633,6 +633,12 @@ details summary {
   padding-bottom: 0;
 }
 
+/* 上家/下家的捨牌固定 7 張一列(原本卡片寬度只夠放 5 張,把牌縮小一點湊到 7 張) */
+.seat-with-melds-above .seat-card .tile-row.tile-row-small .tile-small {
+  width: 30px;
+  height: 40px;
+}
+
 /* AI 剛打出的那張牌閃爍,提示玩家「這張牌現在正在等決定/正在展示」 */
 @keyframes tile-blink {
   0%,
