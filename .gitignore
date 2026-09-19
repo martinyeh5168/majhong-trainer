@@ -1,0 +1,18 @@
+# 環境變數與機密設定
+.env
+.env.*
+!.env.example
+
+# 金鑰、憑證
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+credentials.json
+secrets.json
+secrets.*
+
+# 相依套件與系統檔案
+node_modules/
+.DS_Store
