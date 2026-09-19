@@ -728,16 +728,21 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     container.appendChild(wrap);
   }
 
+  // 每組面子(標籤+牌)包成自己的一個小區塊,這樣不管外層容器是直排還是橫排,
+  // 標籤都會穩穩貼在自己那組牌上面,不會在橫排換行時跟牌組拆散。
   function renderMelds(container, player, { small, showLabel = true } = {}) {
     for (const meld of player.melds) {
+      const group = document.createElement('div');
+      group.className = 'meld-group';
       if (showLabel) {
         const label = document.createElement('p');
         label.className = 'hint';
         label.style.margin = small ? '2px 0' : '4px 0 2px';
         label.textContent = MELD_LABEL[meld.type] ?? meld.type;
-        container.appendChild(label);
+        group.appendChild(label);
       }
-      container.appendChild(renderTileRow(meld.tiles, { small }));
+      group.appendChild(renderTileRow(meld.tiles, { small }));
+      container.appendChild(group);
     }
   }
 
@@ -871,7 +876,8 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
   function buildMeldsBlock(seat) {
     const player = game.players[seat];
     const block = document.createElement('div');
-    block.className = 'seat-melds-block';
+    // 橫向排、空間不夠自動換行,不要一組疊一行往下長,牌桌高度才不會隨吃碰次數暴衝
+    block.className = 'seat-melds-block melds-horizontal';
     renderMelds(block, player, { small: true });
     return block;
   }

@@ -467,11 +467,18 @@ details summary {
   gap: 4px;
 }
 
-/* 自己的面子:好幾組吃碰槓水平排成一列,不要一組一行往下疊 */
+/* 好幾組吃碰槓水平排成一列,空間不夠就換行,不要一組一行往下疊 */
 .seat-melds-block.melds-horizontal {
   flex-direction: row;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* 單一組面子:標籤貼在自己那組牌上面,橫排換行時標籤不會跟牌組拆散 */
+.meld-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 /* 自己的手牌:吃碰槓的面子放在手牌右邊;窄螢幕放不下就自然換到下一行 */
