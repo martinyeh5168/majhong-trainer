@@ -777,21 +777,12 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     container.appendChild(btnRow);
   }
 
+  // 剩餘牌數,固定顯示在桌面右上角(不占中間版面,不會被浮動的面子擋到)。
+  // 用專屬的 class 名稱,跟 play.js(人機對局)自己的 .wall-indicator 分開,避免互相影響。
   function buildWallIndicator() {
     const wrap = document.createElement('div');
-    wrap.className = 'wall-indicator';
-    const count = document.createElement('div');
-    count.className = 'wall-count';
-    count.textContent = `牌牆 ${game.wall.length}`;
-    wrap.appendChild(count);
-    const tiles = document.createElement('div');
-    tiles.className = 'wall-tiles';
-    for (let i = 0; i < Math.min(game.wall.length, 20); i++) {
-      const back = document.createElement('div');
-      back.className = 'wall-tile-back';
-      tiles.appendChild(back);
-    }
-    wrap.appendChild(tiles);
+    wrap.className = 'match-wall-indicator';
+    wrap.textContent = `剩 ${game.wall.length} 張`;
     return wrap;
   }
 
@@ -907,10 +898,12 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     progress.textContent = roundProgressText();
     table.appendChild(progress);
 
+    table.appendChild(buildWallIndicator());
+
     const topRow = document.createElement('div');
     topRow.className = 'seat-row-top';
     const topGroup = document.createElement('div');
-    topGroup.className = 'seat-with-melds-right';
+    topGroup.className = 'seat-with-melds-below';
     topGroup.appendChild(buildSeatCard(topSeat));
     topGroup.appendChild(buildMeldsBlock(topSeat));
     topRow.appendChild(topGroup);
@@ -924,8 +917,6 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     upperGroup.appendChild(buildMeldsBlock(leftSeat));
     upperGroup.appendChild(buildSeatCard(leftSeat));
     middleRow.appendChild(upperGroup);
-
-    middleRow.appendChild(buildWallIndicator());
 
     const lowerGroup = document.createElement('div');
     lowerGroup.className = 'seat-with-melds-above';

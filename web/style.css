@@ -365,6 +365,7 @@ details summary {
 /* ---- 麻將桌(人機對局) ---- */
 
 .mahjong-table {
+  position: relative;
   background: radial-gradient(ellipse at center, var(--felt) 0%, var(--felt-dark) 100%);
   border: 6px solid var(--wood);
   border-radius: 20px;
@@ -435,6 +436,17 @@ details summary {
   border-radius: 2px;
 }
 
+/* 麻將實戰:剩餘張數固定貼在桌面右上角,不占中間版面的位置,
+   不會被上家/下家/對面浮動的面子擋到 */
+.match-wall-indicator {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  color: #eafff2;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
 .seat-card {
   background: rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -465,14 +477,19 @@ details summary {
   margin-bottom: 6px;
 }
 
-/* 對面:吃碰槓的面子放在座位卡片右邊 */
-.seat-with-melds-right {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 10px;
-  flex-wrap: wrap;
+/* 對面:吃碰槓的面子貼著座位卡片下緣往下浮動,不佔版面高度,
+   不會把下面那排(上家/牌牆/下家)往下推 */
+.seat-with-melds-below {
+  position: relative;
   min-width: 0;
+}
+
+.seat-with-melds-below .seat-melds-block {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 6px;
 }
 
 .seat-melds-block {
