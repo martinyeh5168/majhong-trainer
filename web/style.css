@@ -619,6 +619,21 @@ details summary {
   border-radius: 4px;
 }
 
+/* 贏家座位上顯眼的「胡牌!」標記,紅底金字、像一張立起來的牌 */
+.win-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #c62828, #8e0000);
+  color: var(--gold);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  padding: 4px 12px;
+  margin-bottom: 6px;
+  border: 2px solid var(--gold);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
 .seat-meta {
   font-size: 0.72rem;
   color: #cfe9da;

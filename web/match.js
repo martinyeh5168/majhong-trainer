@@ -171,6 +171,22 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     return identity.isHuman ? '你' : `${identity.name}(${positionLabel(seat)})`;
   }
 
+  // 這一手贏牌(自摸或胡別人放槍)的座位,還沒結束或是流局就回傳 null
+  function winningSeat() {
+    if (!game.finished) return null;
+    if (game.result.type === 'tsumo') return game.result.seat;
+    if (game.result.type === 'ron') return game.result.winnerSeat;
+    return null;
+  }
+
+  // 贏家座位上顯眼的「胡牌!」標記,用在對手座位卡片跟自己的手牌區
+  function buildWinBadge() {
+    const badge = document.createElement('div');
+    badge.className = 'win-badge';
+    badge.textContent = '胡牌!';
+    return badge;
+  }
+
   // 目前打到第幾圈第幾局,例如「東風東局」,連莊的話後面加註「N連莊」
   function roundProgressText() {
     const roundName = ROUND_WIND_NAMES[roundWindIndex] ?? ROUND_WIND_NAMES[ROUND_WIND_NAMES.length - 1];
@@ -674,14 +690,23 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     handWrap.appendChild(handRowEl);
     if (confirmBtnEl) handWrap.appendChild(confirmBtnEl);
 
+    const isWinner = winningSeat() === player.seat;
     const hasDiscards = player.discards.length > 0;
     const hasMelds = player.melds.length > 0;
     const flowersBlock = buildFlowersBlock(player);
     const hasFlowers = !!flowersBlock;
-    if (!hasDiscards && !hasMelds && !hasFlowers) return handWrap;
+    if (!hasDiscards && !hasMelds && !hasFlowers) {
+      if (!isWinner) return handWrap;
+      const column = document.createElement('div');
+      column.className = 'your-hand-column';
+      column.appendChild(buildWinBadge());
+      column.appendChild(handWrap);
+      return column;
+    }
 
     const column = document.createElement('div');
     column.className = 'your-hand-column';
+    if (isWinner) column.appendChild(buildWinBadge());
 
     // 自己打出去的牌顯示在手牌正上方、置中
     if (hasDiscards) {
@@ -791,6 +816,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     const identity = identityAt(seat);
     const card = document.createElement('div');
     card.className = seat === 0 ? 'seat-card seat-dealer' : 'seat-card';
+    if (winningSeat() === seat) card.appendChild(buildWinBadge());
 
     const header = document.createElement('div');
     header.className = 'seat-header';
