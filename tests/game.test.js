@@ -116,7 +116,7 @@ function runFullGame(game) {
     }
     game.mustDiscard = false;
     const player = game.players[game.currentSeat];
-    const discardCode = chooseAiDiscard(player);
+    const discardCode = chooseAiDiscard(player, game);
     const discarderSeat = game.currentSeat;
     const tile = discard(game, discardCode);
     resolveCalls(game, discarderSeat, tile);
@@ -146,7 +146,7 @@ test('discard 不會自動輪到下一家,要另外呼叫 skipCall 才會換人'
   const game = createGame(fourPlayers());
   drawForCurrentPlayer(game);
   const player = game.players[0];
-  const discardCode = chooseAiDiscard(player);
+  const discardCode = chooseAiDiscard(player, game);
   discard(game, discardCode);
   assert.equal(game.currentSeat, 0); // 還沒換人
 

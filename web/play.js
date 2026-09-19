@@ -234,7 +234,7 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
   // 閃爍 AI_DISCARD_PAUSE_MS 毫秒,再繼續往下一步(不會卡住畫面,靠計時器接續)。
   function performAiDiscardStep(seat) {
     const player = game.players[seat];
-    const discardCode = chooseAiDiscard(player);
+    const discardCode = chooseAiDiscard(player, game);
     const tile = discard(game, discardCode);
     lastDiscard = { seat, code: tileCode(tile) };
     render();

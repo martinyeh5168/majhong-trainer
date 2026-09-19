@@ -19,3 +19,6 @@ node_modules/
 
 # 執行期產生的玩家資料庫檔案,不進版本控制
 data/
+
+# node --prof 產生的效能側寫紀錄
+isolate-*.log
