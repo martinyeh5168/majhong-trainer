@@ -63,6 +63,13 @@ function describeUseful(usefulTiles) {
   return usefulTiles.map((u) => `${tileDisplayName(u.tile)}(剩${u.remaining}張)`).join('、');
 }
 
+// 場上(所有人棄牌堆)已經出現過的牌,用來判斷後盤下車時「現張」安不安全
+function visibleDiscardCodes(game) {
+  const seen = new Set();
+  for (const p of game.players) for (const t of p.discards) seen.add(tileCode(t));
+  return seen;
+}
+
 function describeCallOption(option) {
   if (option.type === 'pon') return '碰';
   if (option.type === 'kan') return '槓';
@@ -135,6 +142,72 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
       ...you.hand,
       ...game.players.flatMap((p) => [...p.discards, ...p.melds.flatMap((m) => m.tiles)]),
     ];
+  }
+
+  // AI 老師:打牌前先套用麻將學園的技巧講評目前盤勢。這裡是真的 4 人對局,場上看得到
+  // 其他 3 家的棄牌跟副露,所以除了牌效(第一章)之外,也能套用第二、四章跟巡目/防守
+  // 有關的部分 —— 直接呼叫 chooseAiDiscard(你也是它的其中一個使用者,跟 AI 對手同一套邏輯),
+  // 拿它的建議跟純效率最佳解比較,兩個不一樣的時候才特別解釋為什麼。
+  function buildTeacherAdvice(you) {
+    const results = analyzeDiscardsGeneral(you.hand, you.melds, visibleTilesFor(you));
+    const pureBest = results[0];
+    const recommendedCode = chooseAiDiscard(you, game);
+    const recommended = results.find((r) => r.discard === recommendedCode) ?? pureBest;
+
+    const turn = you.drawCount;
+    const phase = turn <= 6 ? '前盤' : turn <= 11 ? '中盤' : '後盤';
+
+    const describe = (r) =>
+      r.shanten === 0
+        ? `打「${tileDisplayName(tileFromCode(r.discard))}」,打出去就聽 ${describeUseful(r.usefulTiles)}`
+        : `打「${tileDisplayName(tileFromCode(r.discard))}」:${describeShanten(r.shanten)},期望進張 ${r.ukeire} 張`;
+
+    const lines = [];
+
+    if (recommended.shanten <= -1) {
+      lines.push('這手已經可以胡了,別猶豫,直接自摸!');
+    } else if (recommended.discard === pureBest.discard) {
+      lines.push(`老師建議:${describe(recommended)}。`);
+    } else {
+      const isLateFold = turn >= 12 && pureBest.shanten > 0 && visibleDiscardCodes(game).has(recommended.discard);
+      const reason = isLateFold
+        ? '後盤還沒聽牌,優先打現張比較安全(第二章「巡目推進防禦標準」)'
+        : '兩種打法效率打平,但這張場上已經曝光比較多,對手比較不容易吃碰或胡走(第四章防守精準化的公開資訊版)';
+      lines.push(
+        `效率最佳解是${describe(pureBest)},但老師建議改打「${tileDisplayName(
+          tileFromCode(recommended.discard)
+        )}」:${reason}。`
+      );
+    }
+
+    if (phase === '前盤') {
+      lines.push(`現在第 ${turn} 巡(前盤):效率最大化,先拆字牌跟用不到的孤張。`);
+    } else if (phase === '中盤') {
+      lines.push(`現在第 ${turn} 巡(中盤):留意場面,若落後兩進聽以上又沒有大牌潛力,可以考慮轉守。`);
+    } else {
+      lines.push(`現在第 ${turn} 巡(後盤):沒聽牌的話該收手了,聽牌的話可以放心進攻。`);
+    }
+
+    return lines;
+  }
+
+  function renderTeacherHint(you) {
+    const box = document.createElement('div');
+    box.className = 'teacher-hint teacher-hint-table';
+
+    const title = document.createElement('p');
+    title.className = 'teacher-hint-title';
+    title.textContent = '🀄 AI 老師';
+    box.appendChild(title);
+
+    for (const line of buildTeacherAdvice(you)) {
+      const p = document.createElement('p');
+      p.className = 'teacher-hint-line';
+      p.textContent = line;
+      box.appendChild(p);
+    }
+
+    return box;
   }
 
   function processCallGroups(groups, index, discarderSeat, tile) {
@@ -762,7 +835,7 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     container.appendChild(btnRow);
   }
 
-  function buildTable(bottomContentEl) {
+  function buildTable(bottomContentEl, middleHintEl) {
     const table = document.createElement('div');
     table.className = 'mahjong-table';
 
@@ -793,6 +866,8 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     middleRow.appendChild(lowerGroup);
 
     table.appendChild(middleRow);
+
+    if (middleHintEl) table.appendChild(middleHintEl);
 
     if (bottomContentEl) {
       const bottomRow = document.createElement('div');
@@ -863,7 +938,8 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
       confirmBtnEl.appendChild(goBtn);
     }
 
-    container.appendChild(buildTable(buildYourHandRow(handRowEl, confirmBtnEl, you)));
+    const teacherHintEl = isNormalTurn ? renderTeacherHint(you) : null;
+    container.appendChild(buildTable(buildYourHandRow(handRowEl, confirmBtnEl, you), teacherHintEl));
 
     const panel = document.createElement('div');
     // 結算畫面內容很長,不要用黏底(sticky)排版,不然會蓋到還沒捲到的牌桌內容
