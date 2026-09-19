@@ -399,7 +399,7 @@ details summary {
   gap: 8px;
   flex-wrap: wrap;
   /* 上家/下家的面子改成往上浮動疊加(見 .seat-with-melds-above),
-     留一點緩衝空間,避免疊比較多組時貼到上面的籌碼列 */
+     留一點緩衝空間,避免疊比較多組時貼到上面對面座位那排 */
   margin-top: 16px;
 }
 
@@ -752,57 +752,6 @@ details summary {
   }
 }
 
-/* 麻將實戰:桌布最上方的籌碼列 */
-.chip-bar {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.chip-bar-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 10px;
-  padding: 6px 12px;
-  color: #fff;
-  font-size: 0.8rem;
-}
-
-.chip-bar-you {
-  background: rgba(216, 164, 65, 0.35);
-  border: 1px solid var(--gold);
-}
-
-.chip-bar-name {
-  font-weight: 600;
-}
-
-.chip-bar-chips {
-  font-variant-numeric: tabular-nums;
-}
-
-.chip-bar-winrate {
-  font-size: 0.7rem;
-  opacity: 0.85;
-}
-
-/* 叫聽了的家,籌碼列上一個顯眼的紅底標誌,一眼就看得出誰聽牌了 */
-.tenpai-badge {
-  display: inline-block;
-  background: var(--wrong);
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.7rem;
-  padding: 1px 6px;
-  border-radius: 999px;
-  letter-spacing: 1px;
-}
-
 .name-input {
   font-family: inherit;
   font-size: 0.95rem;
@@ -860,10 +809,6 @@ details summary {
   .seat-row-bottom {
     margin-top: 8px;
     padding-top: 8px;
-  }
-
-  .chip-bar {
-    margin-bottom: 6px;
   }
 
   .round-progress {

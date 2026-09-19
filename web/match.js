@@ -902,8 +902,6 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     progress.textContent = roundProgressText();
     table.appendChild(progress);
 
-    table.appendChild(renderChipBar());
-
     const topRow = document.createElement('div');
     topRow.className = 'seat-row-top';
     const topGroup = document.createElement('div');
@@ -940,48 +938,6 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     }
 
     return table;
-  }
-
-  // 玩家(真人)歷來完賽比賽的勝率,還沒完賽過就顯示「尚無紀錄」
-  function humanWinRateText() {
-    const s = stats[playerName];
-    if (!s || s.matchesPlayed === 0) return '尚無紀錄';
-    return `${Math.round((s.matchesWon / s.matchesPlayed) * 100)}%`;
-  }
-
-  // 桌布最上面那條籌碼列,四家都看得到現在的籌碼、誰是莊家、誰叫聽了;
-  // 真人自己那格還會多顯示歷來的勝率
-  function renderChipBar() {
-    const bar = document.createElement('div');
-    bar.className = 'chip-bar';
-    for (let seat = 0; seat < 4; seat++) {
-      const identity = identityAt(seat);
-      const item = document.createElement('div');
-      item.className = 'chip-bar-item' + (identity.isHuman ? ' chip-bar-you' : '');
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'chip-bar-name';
-      const dealerSuffix = seat === 0 ? (repeatCount > 1 ? `(莊${repeatCount})` : '(莊)') : '';
-      nameSpan.textContent = `${identity.isHuman ? '你・' : ''}${identity.name}${dealerSuffix}`;
-      const chipSpan = document.createElement('span');
-      chipSpan.className = 'chip-bar-chips';
-      chipSpan.textContent = String(chips[identityOfSeat(seat)]);
-      item.appendChild(nameSpan);
-      if (tenpaiDeclared[seat]) {
-        const tenpaiBadge = document.createElement('span');
-        tenpaiBadge.className = 'tenpai-badge';
-        tenpaiBadge.textContent = '聽牌';
-        item.appendChild(tenpaiBadge);
-      }
-      item.appendChild(chipSpan);
-      if (identity.isHuman) {
-        const winRateSpan = document.createElement('span');
-        winRateSpan.className = 'chip-bar-winrate';
-        winRateSpan.textContent = `勝率 ${humanWinRateText()}`;
-        item.appendChild(winRateSpan);
-      }
-      bar.appendChild(item);
-    }
-    return bar;
   }
 
   function renderResult(container) {
