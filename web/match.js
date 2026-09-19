@@ -87,6 +87,31 @@ function saveStats(stats) {
   }
 }
 
+// 從伺服器端的資料庫檔案讀取戰績。部署在 GitHub Pages 等純靜態環境時沒有這支 API,
+// fetch 會失敗,這時就安靜地放棄,繼續用 localStorage 的資料。
+async function fetchServerStats() {
+  try {
+    const res = await fetch('/api/stats');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+// 同時寫本機 localStorage(立即生效、離線也能用)和伺服器資料庫檔案(跨裝置持久保存)。
+// 伺服器寫入失敗(例如純靜態部署)就當作沒這回事,不影響對局進行。
+function persistStats(stats) {
+  saveStats(stats);
+  fetch('/api/stats', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(stats),
+  }).catch(() => {});
+}
+
 function emptyPlayerStats() {
   return { matchesPlayed: 0, matchesWon: 0, winCount: 0, tsumoCount: 0, dealInCount: 0 };
 }
@@ -264,7 +289,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       if (humanEventType === 'tsumo' || humanEventType === 'ron_win') s.winCount += 1;
       if (humanEventType === 'dealt_in') s.dealInCount += 1;
       stats[playerName] = s;
-      saveStats(stats);
+      persistStats(stats);
     }
 
     // 這裡先算出「下一手」的莊家/圈局,但不馬上套用 —— 這一手的結算畫面(chip bar/座位/進度)
@@ -296,7 +321,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       s.matchesPlayed += 1;
       if (chips[0] > STARTING_CHIPS) s.matchesWon += 1;
       stats[playerName] = s;
-      saveStats(stats);
+      persistStats(stats);
     }
     phase = 'matchEnd';
     render();
@@ -1380,6 +1405,15 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     mount(el) {
       container = el;
       render();
+      // 進畫面後才非同步跟伺服器要一次資料庫檔案內容,拿到後用伺服器版本蓋掉、重繪一次;
+      // 純靜態部署(如 GitHub Pages)沒有這支 API、fetch 失敗時,fetchServerStats 回傳 null,
+      // 這裡就維持原本 localStorage 讀到的內容,不受影響。
+      fetchServerStats().then((serverStats) => {
+        if (!serverStats) return;
+        stats = serverStats;
+        saveStats(stats);
+        render();
+      });
     },
   };
 }
