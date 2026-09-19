@@ -241,14 +241,17 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     let winnerIdentityIndex = null;
     let humanEventType = null; // 'tsumo' | 'ron_win' | 'dealt_in' | null
     let tenpaiBonusTai = 0;
+    let dealerBonusTai = 0;
     let totalTaiWithBonus = null;
 
     if (result.type === 'tsumo') {
       const winnerSeat = result.seat;
-      tenpaiBonusTai = tenpaiDeclared[winnerSeat] ? TENPAI_BONUS_TAI : 0;
-      totalTaiWithBonus = result.score.total + tenpaiBonusTai;
-      const amount = baseAmount({ total: totalTaiWithBonus });
       const winnerIsDealer = winnerSeat === 0;
+      tenpaiBonusTai = tenpaiDeclared[winnerSeat] ? TENPAI_BONUS_TAI : 0;
+      // 莊家台:新莊 1 台,每連莊一次 +2 台(莊連1=3台、莊連2=5台...),只有莊家自己胡牌才算
+      dealerBonusTai = winnerIsDealer ? repeatCount * 2 - 1 : 0;
+      totalTaiWithBonus = result.score.total + tenpaiBonusTai + dealerBonusTai;
+      const amount = baseAmount({ total: totalTaiWithBonus });
       winnerIdentityIndex = identityOfSeat(winnerSeat);
       let totalGain = 0;
       for (let seat = 0; seat < 4; seat++) {
@@ -262,10 +265,12 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       if (identities[winnerIdentityIndex].isHuman) humanEventType = 'tsumo';
     } else if (result.type === 'ron') {
       const { winnerSeat, discarderSeat } = result;
-      tenpaiBonusTai = tenpaiDeclared[winnerSeat] ? TENPAI_BONUS_TAI : 0;
-      totalTaiWithBonus = result.score.total + tenpaiBonusTai;
-      const amount = baseAmount({ total: totalTaiWithBonus });
       const winnerIsDealer = winnerSeat === 0;
+      tenpaiBonusTai = tenpaiDeclared[winnerSeat] ? TENPAI_BONUS_TAI : 0;
+      // 莊家台:新莊 1 台,每連莊一次 +2 台(莊連1=3台、莊連2=5台...),只有莊家自己胡牌才算
+      dealerBonusTai = winnerIsDealer ? repeatCount * 2 - 1 : 0;
+      totalTaiWithBonus = result.score.total + tenpaiBonusTai + dealerBonusTai;
+      const amount = baseAmount({ total: totalTaiWithBonus });
       const discarderIsDealer = discarderSeat === 0;
       const pay = amount * (winnerIsDealer || discarderIsDealer ? 2 : 1);
       winnerIdentityIndex = identityOfSeat(winnerSeat);
@@ -281,7 +286,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       chips[idx] += d.delta;
       d.newTotal = chips[idx];
     });
-    lastSettlement = { resultType: result.type, deltas, tenpaiBonusTai, totalTaiWithBonus };
+    lastSettlement = { resultType: result.type, deltas, tenpaiBonusTai, dealerBonusTai, totalTaiWithBonus };
 
     if (playerName) {
       const s = stats[playerName] ?? emptyPlayerStats();
@@ -992,6 +997,11 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
         li.textContent = `叫聽:${lastSettlement.tenpaiBonusTai} 台`;
         list.appendChild(li);
       }
+      if (lastSettlement?.dealerBonusTai > 0) {
+        const li = document.createElement('li');
+        li.textContent = `莊家台:${lastSettlement.dealerBonusTai} 台`;
+        list.appendChild(li);
+      }
       box.appendChild(list);
     } else if (game.result.type === 'ron') {
       const { winnerSeat, discarderSeat } = game.result;
@@ -1009,6 +1019,11 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       if (lastSettlement?.tenpaiBonusTai > 0) {
         const li = document.createElement('li');
         li.textContent = `叫聽:${lastSettlement.tenpaiBonusTai} 台`;
+        list.appendChild(li);
+      }
+      if (lastSettlement?.dealerBonusTai > 0) {
+        const li = document.createElement('li');
+        li.textContent = `莊家台:${lastSettlement.dealerBonusTai} 台`;
         list.appendChild(li);
       }
       box.appendChild(list);
