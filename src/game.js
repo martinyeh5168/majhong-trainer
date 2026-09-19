@@ -299,9 +299,14 @@ export function applyChi(game, callerSeat, discarderSeat, discardedTile, otherRa
     const idx = caller.hand.findIndex((t) => tileCode(t) === code);
     caller.hand.splice(idx, 1);
   }
-  const runTiles = [discardedTile, ...otherRanks.map((rank) => ({ suit: discardedTile.suit, rank }))].sort(
-    (a, b) => a.rank - b.rank
-  );
+  // 吃進來的牌固定顯示在正中間(不管它本身數字是最小/中間/最大),
+  // 自己手牌出的那兩張依大小排在兩側,例如手上 1、2 吃進 3,顯示順序是 1、3、2。
+  const [smallerRank, largerRank] = [...otherRanks].sort((a, b) => a - b);
+  const runTiles = [
+    { suit: discardedTile.suit, rank: smallerRank },
+    discardedTile,
+    { suit: discardedTile.suit, rank: largerRank },
+  ];
   caller.melds.push({ type: 'chi', tiles: runTiles });
 
   game.log.push({ type: 'chi', seat: callerSeat, tile: tileCode(discardedTile) });
@@ -435,7 +440,7 @@ export function applyChankan(game, winnerSeat, kanSeat, tile) {
   const score = computeScore(
     { concealedTiles: winner.hand, melds: winner.melds },
     tile,
-    { selfDrawn: false, isDealer: winner.seat === 0, isFirstTurn: false, isChankan: true, flowers: winner.flowers }
+    { selfDrawn: false, isDealer: winner.seat === 0, seat: winner.seat, isFirstTurn: false, isChankan: true, flowers: winner.flowers }
   );
   game.finished = true;
   game.result = { type: 'ron', winnerSeat, discarderSeat: kanSeat, tile, score, chankan: true };
@@ -500,7 +505,7 @@ export function applyRon(game, winnerSeat, discarderSeat, tile) {
   const score = computeScore(
     { concealedTiles: winner.hand, melds: winner.melds },
     tile,
-    { selfDrawn: false, isDealer: winner.seat === 0, isFirstTurn: false, flowers: winner.flowers }
+    { selfDrawn: false, isDealer: winner.seat === 0, seat: winner.seat, isFirstTurn: false, flowers: winner.flowers }
   );
   game.finished = true;
   game.result = { type: 'ron', winnerSeat, discarderSeat, tile, score };
@@ -522,6 +527,7 @@ export function declareTsumo(game, context = {}) {
     {
       selfDrawn: true,
       isDealer: player.seat === 0,
+      seat: player.seat,
       isFirstTurn,
       isRinshan: !!context.isRinshan,
       flowers: player.flowers,

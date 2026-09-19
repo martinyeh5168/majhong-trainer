@@ -87,6 +87,31 @@ function saveStats(stats) {
   }
 }
 
+// 從伺服器端的資料庫檔案讀取戰績。部署在 GitHub Pages 等純靜態環境時沒有這支 API,
+// fetch 會失敗,這時就安靜地放棄,繼續用 localStorage 的資料。
+async function fetchServerStats() {
+  try {
+    const res = await fetch('/api/stats');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+// 同時寫本機 localStorage(立即生效、離線也能用)和伺服器資料庫檔案(跨裝置持久保存)。
+// 伺服器寫入失敗(例如純靜態部署)就當作沒這回事,不影響對局進行。
+function persistStats(stats) {
+  saveStats(stats);
+  fetch('/api/stats', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(stats),
+  }).catch(() => {});
+}
+
 function emptyPlayerStats() {
   return { matchesPlayed: 0, matchesWon: 0, winCount: 0, tsumoCount: 0, dealInCount: 0 };
 }
@@ -144,6 +169,22 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
   function seatLabel(seat) {
     const identity = identityAt(seat);
     return identity.isHuman ? '你' : `${identity.name}(${positionLabel(seat)})`;
+  }
+
+  // 這一手贏牌(自摸或胡別人放槍)的座位,還沒結束或是流局就回傳 null
+  function winningSeat() {
+    if (!game.finished) return null;
+    if (game.result.type === 'tsumo') return game.result.seat;
+    if (game.result.type === 'ron') return game.result.winnerSeat;
+    return null;
+  }
+
+  // 贏家座位上顯眼的「胡牌!」標記,用在對手座位卡片跟自己的手牌區
+  function buildWinBadge() {
+    const badge = document.createElement('div');
+    badge.className = 'win-badge';
+    badge.textContent = '胡牌!';
+    return badge;
   }
 
   // 目前打到第幾圈第幾局,例如「東風東局」,連莊的話後面加註「N連莊」
@@ -216,14 +257,17 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     let winnerIdentityIndex = null;
     let humanEventType = null; // 'tsumo' | 'ron_win' | 'dealt_in' | null
     let tenpaiBonusTai = 0;
+    let dealerBonusTai = 0;
     let totalTaiWithBonus = null;
 
     if (result.type === 'tsumo') {
       const winnerSeat = result.seat;
-      tenpaiBonusTai = tenpaiDeclared[winnerSeat] ? TENPAI_BONUS_TAI : 0;
-      totalTaiWithBonus = result.score.total + tenpaiBonusTai;
-      const amount = baseAmount({ total: totalTaiWithBonus });
       const winnerIsDealer = winnerSeat === 0;
+      tenpaiBonusTai = tenpaiDeclared[winnerSeat] ? TENPAI_BONUS_TAI : 0;
+      // 莊家台:新莊 1 台,每連莊一次 +2 台(莊連1=3台、莊連2=5台...),只有莊家自己胡牌才算
+      dealerBonusTai = winnerIsDealer ? repeatCount * 2 - 1 : 0;
+      totalTaiWithBonus = result.score.total + tenpaiBonusTai + dealerBonusTai;
+      const amount = baseAmount({ total: totalTaiWithBonus });
       winnerIdentityIndex = identityOfSeat(winnerSeat);
       let totalGain = 0;
       for (let seat = 0; seat < 4; seat++) {
@@ -237,10 +281,12 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       if (identities[winnerIdentityIndex].isHuman) humanEventType = 'tsumo';
     } else if (result.type === 'ron') {
       const { winnerSeat, discarderSeat } = result;
-      tenpaiBonusTai = tenpaiDeclared[winnerSeat] ? TENPAI_BONUS_TAI : 0;
-      totalTaiWithBonus = result.score.total + tenpaiBonusTai;
-      const amount = baseAmount({ total: totalTaiWithBonus });
       const winnerIsDealer = winnerSeat === 0;
+      tenpaiBonusTai = tenpaiDeclared[winnerSeat] ? TENPAI_BONUS_TAI : 0;
+      // 莊家台:新莊 1 台,每連莊一次 +2 台(莊連1=3台、莊連2=5台...),只有莊家自己胡牌才算
+      dealerBonusTai = winnerIsDealer ? repeatCount * 2 - 1 : 0;
+      totalTaiWithBonus = result.score.total + tenpaiBonusTai + dealerBonusTai;
+      const amount = baseAmount({ total: totalTaiWithBonus });
       const discarderIsDealer = discarderSeat === 0;
       const pay = amount * (winnerIsDealer || discarderIsDealer ? 2 : 1);
       winnerIdentityIndex = identityOfSeat(winnerSeat);
@@ -256,7 +302,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       chips[idx] += d.delta;
       d.newTotal = chips[idx];
     });
-    lastSettlement = { resultType: result.type, deltas, tenpaiBonusTai, totalTaiWithBonus };
+    lastSettlement = { resultType: result.type, deltas, tenpaiBonusTai, dealerBonusTai, totalTaiWithBonus };
 
     if (playerName) {
       const s = stats[playerName] ?? emptyPlayerStats();
@@ -264,7 +310,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       if (humanEventType === 'tsumo' || humanEventType === 'ron_win') s.winCount += 1;
       if (humanEventType === 'dealt_in') s.dealInCount += 1;
       stats[playerName] = s;
-      saveStats(stats);
+      persistStats(stats);
     }
 
     // 這裡先算出「下一手」的莊家/圈局,但不馬上套用 —— 這一手的結算畫面(chip bar/座位/進度)
@@ -296,7 +342,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       s.matchesPlayed += 1;
       if (chips[0] > STARTING_CHIPS) s.matchesWon += 1;
       stats[playerName] = s;
-      saveStats(stats);
+      persistStats(stats);
     }
     phase = 'matchEnd';
     render();
@@ -644,14 +690,23 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     handWrap.appendChild(handRowEl);
     if (confirmBtnEl) handWrap.appendChild(confirmBtnEl);
 
+    const isWinner = winningSeat() === player.seat;
     const hasDiscards = player.discards.length > 0;
     const hasMelds = player.melds.length > 0;
     const flowersBlock = buildFlowersBlock(player);
     const hasFlowers = !!flowersBlock;
-    if (!hasDiscards && !hasMelds && !hasFlowers) return handWrap;
+    if (!hasDiscards && !hasMelds && !hasFlowers) {
+      if (!isWinner) return handWrap;
+      const column = document.createElement('div');
+      column.className = 'your-hand-column';
+      column.appendChild(buildWinBadge());
+      column.appendChild(handWrap);
+      return column;
+    }
 
     const column = document.createElement('div');
     column.className = 'your-hand-column';
+    if (isWinner) column.appendChild(buildWinBadge());
 
     // 自己打出去的牌顯示在手牌正上方、置中
     if (hasDiscards) {
@@ -703,16 +758,21 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     container.appendChild(wrap);
   }
 
+  // 每組面子(標籤+牌)包成自己的一個小區塊,這樣不管外層容器是直排還是橫排,
+  // 標籤都會穩穩貼在自己那組牌上面,不會在橫排換行時跟牌組拆散。
   function renderMelds(container, player, { small, showLabel = true } = {}) {
     for (const meld of player.melds) {
+      const group = document.createElement('div');
+      group.className = 'meld-group';
       if (showLabel) {
         const label = document.createElement('p');
         label.className = 'hint';
         label.style.margin = small ? '2px 0' : '4px 0 2px';
         label.textContent = MELD_LABEL[meld.type] ?? meld.type;
-        container.appendChild(label);
+        group.appendChild(label);
       }
-      container.appendChild(renderTileRow(meld.tiles, { small }));
+      group.appendChild(renderTileRow(meld.tiles, { small }));
+      container.appendChild(group);
     }
   }
 
@@ -742,21 +802,11 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     container.appendChild(btnRow);
   }
 
+  // 剩餘牌數,固定顯示在桌面右上角(不占中間版面,不會被浮動的面子擋到)。
   function buildWallIndicator() {
     const wrap = document.createElement('div');
-    wrap.className = 'wall-indicator';
-    const count = document.createElement('div');
-    count.className = 'wall-count';
-    count.textContent = `牌牆 ${game.wall.length}`;
-    wrap.appendChild(count);
-    const tiles = document.createElement('div');
-    tiles.className = 'wall-tiles';
-    for (let i = 0; i < Math.min(game.wall.length, 20); i++) {
-      const back = document.createElement('div');
-      back.className = 'wall-tile-back';
-      tiles.appendChild(back);
-    }
-    wrap.appendChild(tiles);
+    wrap.className = 'wall-indicator-corner';
+    wrap.textContent = `剩 ${game.wall.length} 張`;
     return wrap;
   }
 
@@ -765,6 +815,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     const identity = identityAt(seat);
     const card = document.createElement('div');
     card.className = seat === 0 ? 'seat-card seat-dealer' : 'seat-card';
+    if (winningSeat() === seat) card.appendChild(buildWinBadge());
 
     const header = document.createElement('div');
     header.className = 'seat-header';
@@ -846,8 +897,10 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
   function buildMeldsBlock(seat) {
     const player = game.players[seat];
     const block = document.createElement('div');
-    block.className = 'seat-melds-block';
-    renderMelds(block, player, { small: true });
+    // 橫向排、空間不夠自動換行,不要一組疊一行往下長,牌桌高度才不會隨吃碰次數暴衝;
+    // 不顯示「碰/吃/槓」文字標籤,牌組本身的花色排列就看得出叫的是什麼,可以再省一行高度
+    block.className = 'seat-melds-block melds-horizontal';
+    renderMelds(block, player, { small: true, showLabel: false });
     return block;
   }
 
@@ -870,12 +923,12 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     progress.textContent = roundProgressText();
     table.appendChild(progress);
 
-    table.appendChild(renderChipBar());
+    table.appendChild(buildWallIndicator());
 
     const topRow = document.createElement('div');
     topRow.className = 'seat-row-top';
     const topGroup = document.createElement('div');
-    topGroup.className = 'seat-with-melds-right';
+    topGroup.className = 'seat-with-melds-below';
     topGroup.appendChild(buildSeatCard(topSeat));
     topGroup.appendChild(buildMeldsBlock(topSeat));
     topRow.appendChild(topGroup);
@@ -889,8 +942,6 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     upperGroup.appendChild(buildMeldsBlock(leftSeat));
     upperGroup.appendChild(buildSeatCard(leftSeat));
     middleRow.appendChild(upperGroup);
-
-    middleRow.appendChild(buildWallIndicator());
 
     const lowerGroup = document.createElement('div');
     lowerGroup.className = 'seat-with-melds-above';
@@ -908,48 +959,6 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     }
 
     return table;
-  }
-
-  // 玩家(真人)歷來完賽比賽的勝率,還沒完賽過就顯示「尚無紀錄」
-  function humanWinRateText() {
-    const s = stats[playerName];
-    if (!s || s.matchesPlayed === 0) return '尚無紀錄';
-    return `${Math.round((s.matchesWon / s.matchesPlayed) * 100)}%`;
-  }
-
-  // 桌布最上面那條籌碼列,四家都看得到現在的籌碼、誰是莊家、誰叫聽了;
-  // 真人自己那格還會多顯示歷來的勝率
-  function renderChipBar() {
-    const bar = document.createElement('div');
-    bar.className = 'chip-bar';
-    for (let seat = 0; seat < 4; seat++) {
-      const identity = identityAt(seat);
-      const item = document.createElement('div');
-      item.className = 'chip-bar-item' + (identity.isHuman ? ' chip-bar-you' : '');
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'chip-bar-name';
-      const dealerSuffix = seat === 0 ? (repeatCount > 1 ? `(莊${repeatCount})` : '(莊)') : '';
-      nameSpan.textContent = `${identity.isHuman ? '你・' : ''}${identity.name}${dealerSuffix}`;
-      const chipSpan = document.createElement('span');
-      chipSpan.className = 'chip-bar-chips';
-      chipSpan.textContent = String(chips[identityOfSeat(seat)]);
-      item.appendChild(nameSpan);
-      if (tenpaiDeclared[seat]) {
-        const tenpaiBadge = document.createElement('span');
-        tenpaiBadge.className = 'tenpai-badge';
-        tenpaiBadge.textContent = '聽牌';
-        item.appendChild(tenpaiBadge);
-      }
-      item.appendChild(chipSpan);
-      if (identity.isHuman) {
-        const winRateSpan = document.createElement('span');
-        winRateSpan.className = 'chip-bar-winrate';
-        winRateSpan.textContent = `勝率 ${humanWinRateText()}`;
-        item.appendChild(winRateSpan);
-      }
-      bar.appendChild(item);
-    }
-    return bar;
   }
 
   function renderResult(container) {
@@ -1004,6 +1013,11 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
         li.textContent = `叫聽:${lastSettlement.tenpaiBonusTai} 台`;
         list.appendChild(li);
       }
+      if (lastSettlement?.dealerBonusTai > 0) {
+        const li = document.createElement('li');
+        li.textContent = `莊家台:${lastSettlement.dealerBonusTai} 台`;
+        list.appendChild(li);
+      }
       box.appendChild(list);
     } else if (game.result.type === 'ron') {
       const { winnerSeat, discarderSeat } = game.result;
@@ -1021,6 +1035,11 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       if (lastSettlement?.tenpaiBonusTai > 0) {
         const li = document.createElement('li');
         li.textContent = `叫聽:${lastSettlement.tenpaiBonusTai} 台`;
+        list.appendChild(li);
+      }
+      if (lastSettlement?.dealerBonusTai > 0) {
+        const li = document.createElement('li');
+        li.textContent = `莊家台:${lastSettlement.dealerBonusTai} 台`;
         list.appendChild(li);
       }
       box.appendChild(list);
@@ -1095,18 +1114,27 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     container.appendChild(btnRow);
   }
 
-  function renderStatsTable(container, highlightName) {
+  function renderStatsTable(container, highlightName, { onSelectName, onDeleteName } = {}) {
     const names = Object.keys(stats);
     if (names.length === 0) return;
     const heading = document.createElement('h3');
     heading.textContent = '戰績紀錄';
     container.appendChild(heading);
 
+    if (onSelectName) {
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = '點一列可以帶入姓名、繼續累積該選手的戰績。';
+      container.appendChild(hint);
+    }
+
     const table = document.createElement('table');
     table.className = 'match-stats-table';
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
-    for (const h of ['姓名', '完賽場數', '勝率', '胡牌數', '自摸數', '放槍數']) {
+    const headers = ['姓名', '完賽場數', '勝率', '胡牌數', '自摸數', '放槍數'];
+    if (onDeleteName) headers.push('');
+    for (const h of headers) {
       const th = document.createElement('th');
       th.textContent = h;
       headRow.appendChild(th);
@@ -1119,12 +1147,28 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       const s = stats[name];
       const rate = s.matchesPlayed > 0 ? Math.round((s.matchesWon / s.matchesPlayed) * 100) : 0;
       const tr = document.createElement('tr');
-      if (name === highlightName) tr.className = 'highlight-row';
+      tr.className = (name === highlightName ? 'highlight-row' : '') + (onSelectName ? ' stats-row' : '');
+      if (onSelectName) tr.addEventListener('click', () => onSelectName(name));
       const cells = [name, String(s.matchesPlayed), `${rate}%`, String(s.winCount), String(s.tsumoCount), String(s.dealInCount)];
       for (const c of cells) {
         const td = document.createElement('td');
         td.textContent = c;
         tr.appendChild(td);
+      }
+      if (onDeleteName) {
+        const actionTd = document.createElement('td');
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'stats-delete-btn';
+        deleteBtn.textContent = '刪除';
+        deleteBtn.addEventListener('click', (event) => {
+          event.stopPropagation(); // 不要連帶觸發那一列的「帶入姓名」
+          if (window.confirm(`確定要刪除「${name}」的戰績紀錄嗎?這個動作無法復原。`)) {
+            onDeleteName(name);
+          }
+        });
+        actionTd.appendChild(deleteBtn);
+        tr.appendChild(actionTd);
       }
       tbody.appendChild(tr);
     }
@@ -1195,7 +1239,18 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     form.appendChild(startBtn);
     container.appendChild(form);
 
-    renderStatsTable(container, playerName);
+    renderStatsTable(container, playerName, {
+      onSelectName: (name) => {
+        input.value = name;
+        startBtn.disabled = !name.trim();
+        input.focus();
+      },
+      onDeleteName: (name) => {
+        delete stats[name];
+        persistStats(stats);
+        render();
+      },
+    });
   }
 
   function renderMatchSummary(container) {
@@ -1380,6 +1435,15 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     mount(el) {
       container = el;
       render();
+      // 進畫面後才非同步跟伺服器要一次資料庫檔案內容,拿到後用伺服器版本蓋掉、重繪一次;
+      // 純靜態部署(如 GitHub Pages)沒有這支 API、fetch 失敗時,fetchServerStats 回傳 null,
+      // 這裡就維持原本 localStorage 讀到的內容,不受影響。
+      fetchServerStats().then((serverStats) => {
+        if (!serverStats) return;
+        stats = serverStats;
+        saveStats(stats);
+        render();
+      });
     },
   };
 }

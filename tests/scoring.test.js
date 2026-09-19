@@ -55,22 +55,41 @@ test('字一色 + 大四喜同時成立(東南西北四組刻子 + 中發對子)
   assert.equal(tai(score.items, 'daSiXi'), 16);
 });
 
-test('缺一門(只用萬和筒兩種花色,不含字牌)', () => {
+test('用兩種花色(不含字牌)胡牌,不計缺一門,也不算清一色/混一色', () => {
   // 123m 456m + 123p 456p 789p + 對子99m,缺一張 9p
   const concealedTiles = parseHand('12345699m12345678p');
   const winningTile = { suit: 'p', rank: 9 };
   const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: true });
-  assert.equal(tai(score.items, 'queYiMen'), 1);
+  assert.equal(tai(score.items, 'queYiMen'), 0);
   assert.equal(tai(score.items, 'qingYiSe'), 0);
   assert.equal(tai(score.items, 'hunYiSe'), 0);
 });
 
-test('花牌依張數加台', () => {
+test('正花才算台,別人座位的花不計台', () => {
   const concealedTiles = parseHand('123456789m123p45p55s');
   const winningTile = { suit: 'p', rank: 6 };
-  const flowers = parseHand('1z2z'); // 借用 tile 結構暫存 2 支花
-  const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: true, flowers });
+  // rank 1(梅)、5(春)是座位 0 的正花;rank 2(蘭)是座位 1 的花,對座位 0 來說不是正花
+  const flowers = [{ suit: 'f', rank: 1 }, { suit: 'f', rank: 5 }, { suit: 'f', rank: 2 }];
+  const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: true, seat: 0, flowers });
   assert.equal(tai(score.items, 'huaPai'), 2);
+});
+
+test('沒有正花(全部都是別人座位的花)不加花牌台', () => {
+  const concealedTiles = parseHand('123456789m123p45p55s');
+  const winningTile = { suit: 'p', rank: 6 };
+  const flowers = [{ suit: 'f', rank: 2 }, { suit: 'f', rank: 3 }];
+  const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: true, seat: 0, flowers });
+  assert.equal(tai(score.items, 'huaPai'), 0);
+});
+
+test('花杠:集滿梅蘭菊竹或春夏秋冬其中一套,額外加台', () => {
+  const concealedTiles = parseHand('123456789m123p45p55s');
+  const winningTile = { suit: 'p', rank: 6 };
+  // 梅蘭菊竹(rank 1~4)集滿一套花杠,其中只有 rank 1 是座位 0 的正花
+  const flowers = [1, 2, 3, 4].map((rank) => ({ suit: 'f', rank }));
+  const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: true, seat: 0, flowers });
+  assert.equal(tai(score.items, 'huaPai'), 1);
+  assert.equal(tai(score.items, 'huaGang'), 2);
 });
 
 test('全求人:五組都靠吃碰而來,胡的是最後那對將眼', () => {

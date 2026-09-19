@@ -16,3 +16,6 @@ secrets.*
 # 相依套件與系統檔案
 node_modules/
 .DS_Store
+
+# 執行期產生的玩家資料庫檔案,不進版本控制
+data/

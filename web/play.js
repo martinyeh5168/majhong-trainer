@@ -91,6 +91,22 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     return identity ? `${identity.name}(${POSITION_LABEL[seat]})` : SEAT_NAME[seat];
   }
 
+  // 這一手贏牌(自摸或胡別人放槍)的座位,還沒結束或是流局就回傳 null
+  function winningSeat() {
+    if (!game.finished) return null;
+    if (game.result.type === 'tsumo') return game.result.seat;
+    if (game.result.type === 'ron') return game.result.winnerSeat;
+    return null;
+  }
+
+  // 贏家座位上顯眼的「胡牌!」標記,用在對手座位卡片跟自己的手牌區
+  function buildWinBadge() {
+    const badge = document.createElement('div');
+    badge.className = 'win-badge';
+    badge.textContent = '胡牌!';
+    return badge;
+  }
+
   function newGame() {
     game = createGame([
       { id: 'you', isHuman: true },
@@ -489,12 +505,21 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     handWrap.appendChild(handRowEl);
     if (confirmBtnEl) handWrap.appendChild(confirmBtnEl);
 
+    const isWinner = winningSeat() === player.seat;
     const hasDiscards = player.discards.length > 0;
     const hasMelds = player.melds.length > 0;
-    if (!hasDiscards && !hasMelds) return handWrap;
+    if (!hasDiscards && !hasMelds) {
+      if (!isWinner) return handWrap;
+      const column = document.createElement('div');
+      column.className = 'your-hand-column';
+      column.appendChild(buildWinBadge());
+      column.appendChild(handWrap);
+      return column;
+    }
 
     const column = document.createElement('div');
     column.className = 'your-hand-column';
+    if (isWinner) column.appendChild(buildWinBadge());
 
     // 自己打出去的牌顯示在手牌正上方、置中
     if (hasDiscards) {
@@ -542,16 +567,21 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     container.appendChild(wrap);
   }
 
+  // 每組面子(標籤+牌)包成自己的一個小區塊,這樣不管外層容器是直排還是橫排,
+  // 標籤都會穩穩貼在自己那組牌上面,不會在橫排換行時跟牌組拆散。
   function renderMelds(container, player, { small, showLabel = true } = {}) {
     for (const meld of player.melds) {
+      const group = document.createElement('div');
+      group.className = 'meld-group';
       if (showLabel) {
         const label = document.createElement('p');
         label.className = 'hint';
         label.style.margin = small ? '2px 0' : '4px 0 2px';
         label.textContent = MELD_LABEL[meld.type] ?? meld.type;
-        container.appendChild(label);
+        group.appendChild(label);
       }
-      container.appendChild(renderTileRow(meld.tiles, { small }));
+      group.appendChild(renderTileRow(meld.tiles, { small }));
+      container.appendChild(group);
     }
   }
 
@@ -581,21 +611,11 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     container.appendChild(btnRow);
   }
 
+  // 剩餘牌數,固定顯示在桌面右上角(不占中間版面,不會被浮動的面子擋到)。
   function buildWallIndicator() {
     const wrap = document.createElement('div');
-    wrap.className = 'wall-indicator';
-    const count = document.createElement('div');
-    count.className = 'wall-count';
-    count.textContent = `牌牆 ${game.wall.length}`;
-    wrap.appendChild(count);
-    const tiles = document.createElement('div');
-    tiles.className = 'wall-tiles';
-    for (let i = 0; i < Math.min(game.wall.length, 20); i++) {
-      const back = document.createElement('div');
-      back.className = 'wall-tile-back';
-      tiles.appendChild(back);
-    }
-    wrap.appendChild(tiles);
+    wrap.className = 'wall-indicator-corner';
+    wrap.textContent = `剩 ${game.wall.length} 張`;
     return wrap;
   }
 
@@ -603,6 +623,7 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     const player = game.players[seat];
     const card = document.createElement('div');
     card.className = seat === 0 ? 'seat-card seat-dealer' : 'seat-card';
+    if (winningSeat() === seat) card.appendChild(buildWinBadge());
 
     const header = document.createElement('div');
     header.className = 'seat-header';
@@ -689,12 +710,14 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     return btnRow;
   }
 
-  // 吃碰槓的面子獨立出來,方便依座位擺在不同位置(上家/下家放座位上面,對面放座位右邊)
+  // 吃碰槓的面子獨立出來,方便依座位擺在不同位置(上家/下家放座位上面,對面放座位下面)。
+  // 橫向排、空間不夠自動換行,不要一組疊一行往下長,牌桌高度才不會隨吃碰次數暴衝;
+  // 不顯示「碰/吃/槓」文字標籤,牌組本身的花色排列就看得出叫的是什麼,可以再省一行高度
   function buildMeldsBlock(seat) {
     const player = game.players[seat];
     const block = document.createElement('div');
-    block.className = 'seat-melds-block';
-    renderMelds(block, player, { small: true });
+    block.className = 'seat-melds-block melds-horizontal';
+    renderMelds(block, player, { small: true, showLabel: false });
     return block;
   }
 
@@ -743,12 +766,14 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     const table = document.createElement('div');
     table.className = 'mahjong-table';
 
+    table.appendChild(buildWallIndicator());
+
     const topRow = document.createElement('div');
     topRow.className = 'seat-row-top';
     const topGroup = document.createElement('div');
-    topGroup.className = 'seat-with-melds-right';
+    topGroup.className = 'seat-with-melds-below';
     topGroup.appendChild(buildSeatCard(2));
-    topGroup.appendChild(buildMeldsBlock(2)); // 對面吃碰槓的牌放座位右邊
+    topGroup.appendChild(buildMeldsBlock(2)); // 對面吃碰槓的牌放座位下面
     topRow.appendChild(topGroup);
     table.appendChild(topRow);
 
@@ -760,8 +785,6 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     upperGroup.appendChild(buildMeldsBlock(3)); // 上家吃碰槓的牌放座位上面
     upperGroup.appendChild(buildSeatCard(3)); // 上家放左邊
     middleRow.appendChild(upperGroup);
-
-    middleRow.appendChild(buildWallIndicator());
 
     const lowerGroup = document.createElement('div');
     lowerGroup.className = 'seat-with-melds-above';

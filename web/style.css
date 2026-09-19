@@ -365,6 +365,7 @@ details summary {
 /* ---- 麻將桌(人機對局) ---- */
 
 .mahjong-table {
+  position: relative;
   background: radial-gradient(ellipse at center, var(--felt) 0%, var(--felt-dark) 100%);
   border: 6px solid var(--wood);
   border-radius: 20px;
@@ -398,38 +399,20 @@ details summary {
   align-items: flex-start;
   gap: 8px;
   flex-wrap: wrap;
+  /* 上家/下家的面子改成往上浮動疊加(見 .seat-with-melds-above),
+     留一點緩衝空間,避免疊比較多組時貼到上面對面座位那排 */
+  margin-top: 16px;
 }
 
-.wall-indicator {
-  flex: 1 1 140px;
-  min-width: 120px;
-  text-align: center;
+/* 剩餘張數固定貼在桌面右上角,不占中間版面的位置,
+   不會被上家/下家/對面浮動的面子擋到(麻將實戰、人機對局共用) */
+.wall-indicator-corner {
+  position: absolute;
+  top: 10px;
+  right: 14px;
   color: #eafff2;
-  padding-top: 8px;
-}
-
-.wall-indicator .wall-count {
-  font-size: 1.3rem;
-  font-weight: 700;
-}
-
-.wall-tiles {
-  display: flex;
-  justify-content: center;
-  gap: 2px;
-  margin-top: 6px;
-  flex-wrap: wrap;
-  max-width: 160px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.wall-tiles .wall-tile-back {
-  width: 12px;
-  height: 16px;
-  background: linear-gradient(135deg, #fdf6e3, #e8dcb8);
-  border: 1px solid #b7a565;
-  border-radius: 2px;
+  font-size: 0.85rem;
+  opacity: 0.85;
 }
 
 .seat-card {
@@ -442,23 +425,39 @@ details summary {
   color: #eafff2;
 }
 
-/* 上家/下家:吃碰槓的面子疊在座位卡片上面 */
+/* 上家/下家:吃碰槓的面子疊在座位卡片上面。
+   面子用絕對定位、貼著座位卡片的上緣往上長,不佔版面高度,
+   這樣叫牌越多次只會往上多疊,不會把座位卡片的位置往下推。 */
 .seat-with-melds-above {
   display: flex;
   flex-direction: column;
   gap: 6px;
   flex: 0 1 280px;
   min-width: 0;
+  position: relative;
 }
 
-/* 對面:吃碰槓的面子放在座位卡片右邊 */
-.seat-with-melds-right {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 10px;
-  flex-wrap: wrap;
+.seat-with-melds-above .seat-melds-block {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
+}
+
+/* 對面:吃碰槓的面子貼著座位卡片下緣往下浮動,不佔版面高度,
+   不會把下面那排(上家/牌牆/下家)往下推 */
+.seat-with-melds-below {
+  position: relative;
   min-width: 0;
+}
+
+.seat-with-melds-below .seat-melds-block {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 6px;
 }
 
 .seat-melds-block {
@@ -467,11 +466,18 @@ details summary {
   gap: 4px;
 }
 
-/* 自己的面子:好幾組吃碰槓水平排成一列,不要一組一行往下疊 */
+/* 好幾組吃碰槓水平排成一列,空間不夠就換行,不要一組一行往下疊 */
 .seat-melds-block.melds-horizontal {
   flex-direction: row;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* 單一組面子:標籤貼在自己那組牌上面,橫排換行時標籤不會跟牌組拆散 */
+.meld-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 /* 自己的手牌:吃碰槓的面子放在手牌右邊;窄螢幕放不下就自然換到下一行 */
@@ -581,6 +587,21 @@ details summary {
   border-radius: 4px;
 }
 
+/* 贏家座位上顯眼的「胡牌!」標記,紅底金字、像一張立起來的牌 */
+.win-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #c62828, #8e0000);
+  color: var(--gold);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  padding: 4px 12px;
+  margin-bottom: 6px;
+  border: 2px solid var(--gold);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
 .seat-meta {
   font-size: 0.72rem;
   color: #cfe9da;
@@ -593,6 +614,12 @@ details summary {
   flex-wrap: wrap;
   overflow-x: visible;
   padding-bottom: 0;
+}
+
+/* 上家/下家的捨牌固定 7 張一列(原本卡片寬度只夠放 5 張,把牌縮小一點湊到 7 張) */
+.seat-with-melds-above .seat-card .tile-row.tile-row-small .tile-small {
+  width: 30px;
+  height: 40px;
 }
 
 /* AI 剛打出的那張牌閃爍,提示玩家「這張牌現在正在等決定/正在展示」 */
@@ -731,57 +758,6 @@ details summary {
   }
 }
 
-/* 麻將實戰:桌布最上方的籌碼列 */
-.chip-bar {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.chip-bar-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 10px;
-  padding: 6px 12px;
-  color: #fff;
-  font-size: 0.8rem;
-}
-
-.chip-bar-you {
-  background: rgba(216, 164, 65, 0.35);
-  border: 1px solid var(--gold);
-}
-
-.chip-bar-name {
-  font-weight: 600;
-}
-
-.chip-bar-chips {
-  font-variant-numeric: tabular-nums;
-}
-
-.chip-bar-winrate {
-  font-size: 0.7rem;
-  opacity: 0.85;
-}
-
-/* 叫聽了的家,籌碼列上一個顯眼的紅底標誌,一眼就看得出誰聽牌了 */
-.tenpai-badge {
-  display: inline-block;
-  background: var(--wrong);
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.7rem;
-  padding: 1px 6px;
-  border-radius: 999px;
-  letter-spacing: 1px;
-}
-
 .name-input {
   font-family: inherit;
   font-size: 0.95rem;
@@ -809,6 +785,29 @@ details summary {
 .match-stats-table .highlight-row {
   background: rgba(216, 164, 65, 0.18);
   font-weight: 600;
+}
+
+.match-stats-table .stats-row {
+  cursor: pointer;
+}
+
+.match-stats-table .stats-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.stats-delete-btn {
+  background: transparent;
+  border: 1px solid var(--wrong);
+  color: var(--wrong);
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.stats-delete-btn:hover {
+  background: var(--wrong);
+  color: #fff;
 }
 
 /* 手機橫放:寬度通常夠,但高度很緊 —— 牌桌各處的留白跟著縮,盡量不用捲動就看到操作區,
@@ -839,10 +838,6 @@ details summary {
   .seat-row-bottom {
     margin-top: 8px;
     padding-top: 8px;
-  }
-
-  .chip-bar {
-    margin-bottom: 6px;
   }
 
   .round-progress {
