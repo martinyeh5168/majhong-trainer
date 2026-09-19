@@ -217,6 +217,19 @@ test('applyChi:吃完之後手牌減少 2 張、多一組順子面子', () => {
   assert.equal(game.mustDiscard, true);
 });
 
+test('applyChi:吃進來的牌固定放正中間,不是照數字排序(手上1、2吃進3,顯示1、3、2)', () => {
+  const game = createGame(fourPlayers());
+  game.players[1].hand = parseHand('12456m123p789s112z');
+  const discarderSeat = 0;
+  const tile = { suit: 'm', rank: 3 };
+  game.players[discarderSeat].discards.push(tile);
+
+  applyChi(game, 1, discarderSeat, tile, [1, 2]);
+
+  const chiCodes = game.players[1].melds[0].tiles.map(tileCode);
+  assert.deepEqual(chiCodes, ['1m', '3m', '2m']);
+});
+
 test('chooseAiCallDecision:碰了會讓向聽數變好,就決定要碰', () => {
   const game = createGame(fourPlayers());
   // 4 組面子已經完成、還多一組對子孤張,碰了對子之後改聽單吊,向聽數從 1 進步到 0
