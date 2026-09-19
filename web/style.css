@@ -404,41 +404,9 @@ details summary {
   margin-top: 16px;
 }
 
-.wall-indicator {
-  flex: 1 1 140px;
-  min-width: 120px;
-  text-align: center;
-  color: #eafff2;
-  padding-top: 8px;
-}
-
-.wall-indicator .wall-count {
-  font-size: 1.3rem;
-  font-weight: 700;
-}
-
-.wall-tiles {
-  display: flex;
-  justify-content: center;
-  gap: 2px;
-  margin-top: 6px;
-  flex-wrap: wrap;
-  max-width: 160px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.wall-tiles .wall-tile-back {
-  width: 12px;
-  height: 16px;
-  background: linear-gradient(135deg, #fdf6e3, #e8dcb8);
-  border: 1px solid #b7a565;
-  border-radius: 2px;
-}
-
-/* 麻將實戰:剩餘張數固定貼在桌面右上角,不占中間版面的位置,
-   不會被上家/下家/對面浮動的面子擋到 */
-.match-wall-indicator {
+/* 剩餘張數固定貼在桌面右上角,不占中間版面的位置,
+   不會被上家/下家/對面浮動的面子擋到(麻將實戰、人機對局共用) */
+.wall-indicator-corner {
   position: absolute;
   top: 10px;
   right: 14px;

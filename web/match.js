@@ -803,10 +803,9 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
   }
 
   // 剩餘牌數,固定顯示在桌面右上角(不占中間版面,不會被浮動的面子擋到)。
-  // 用專屬的 class 名稱,跟 play.js(人機對局)自己的 .wall-indicator 分開,避免互相影響。
   function buildWallIndicator() {
     const wrap = document.createElement('div');
-    wrap.className = 'match-wall-indicator';
+    wrap.className = 'wall-indicator-corner';
     wrap.textContent = `剩 ${game.wall.length} 張`;
     return wrap;
   }
