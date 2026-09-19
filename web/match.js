@@ -1115,18 +1115,27 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     container.appendChild(btnRow);
   }
 
-  function renderStatsTable(container, highlightName) {
+  function renderStatsTable(container, highlightName, { onSelectName, onDeleteName } = {}) {
     const names = Object.keys(stats);
     if (names.length === 0) return;
     const heading = document.createElement('h3');
     heading.textContent = '戰績紀錄';
     container.appendChild(heading);
 
+    if (onSelectName) {
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = '點一列可以帶入姓名、繼續累積該選手的戰績。';
+      container.appendChild(hint);
+    }
+
     const table = document.createElement('table');
     table.className = 'match-stats-table';
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
-    for (const h of ['姓名', '完賽場數', '勝率', '胡牌數', '自摸數', '放槍數']) {
+    const headers = ['姓名', '完賽場數', '勝率', '胡牌數', '自摸數', '放槍數'];
+    if (onDeleteName) headers.push('');
+    for (const h of headers) {
       const th = document.createElement('th');
       th.textContent = h;
       headRow.appendChild(th);
@@ -1139,12 +1148,28 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       const s = stats[name];
       const rate = s.matchesPlayed > 0 ? Math.round((s.matchesWon / s.matchesPlayed) * 100) : 0;
       const tr = document.createElement('tr');
-      if (name === highlightName) tr.className = 'highlight-row';
+      tr.className = (name === highlightName ? 'highlight-row' : '') + (onSelectName ? ' stats-row' : '');
+      if (onSelectName) tr.addEventListener('click', () => onSelectName(name));
       const cells = [name, String(s.matchesPlayed), `${rate}%`, String(s.winCount), String(s.tsumoCount), String(s.dealInCount)];
       for (const c of cells) {
         const td = document.createElement('td');
         td.textContent = c;
         tr.appendChild(td);
+      }
+      if (onDeleteName) {
+        const actionTd = document.createElement('td');
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'stats-delete-btn';
+        deleteBtn.textContent = '刪除';
+        deleteBtn.addEventListener('click', (event) => {
+          event.stopPropagation(); // 不要連帶觸發那一列的「帶入姓名」
+          if (window.confirm(`確定要刪除「${name}」的戰績紀錄嗎?這個動作無法復原。`)) {
+            onDeleteName(name);
+          }
+        });
+        actionTd.appendChild(deleteBtn);
+        tr.appendChild(actionTd);
       }
       tbody.appendChild(tr);
     }
@@ -1215,7 +1240,18 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     form.appendChild(startBtn);
     container.appendChild(form);
 
-    renderStatsTable(container, playerName);
+    renderStatsTable(container, playerName, {
+      onSelectName: (name) => {
+        input.value = name;
+        startBtn.disabled = !name.trim();
+        input.focus();
+      },
+      onDeleteName: (name) => {
+        delete stats[name];
+        persistStats(stats);
+        render();
+      },
+    });
   }
 
   function renderMatchSummary(container) {

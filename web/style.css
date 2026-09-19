@@ -819,6 +819,29 @@ details summary {
   font-weight: 600;
 }
 
+.match-stats-table .stats-row {
+  cursor: pointer;
+}
+
+.match-stats-table .stats-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.stats-delete-btn {
+  background: transparent;
+  border: 1px solid var(--wrong);
+  color: var(--wrong);
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.stats-delete-btn:hover {
+  background: var(--wrong);
+  color: #fff;
+}
+
 /* 手機橫放:寬度通常夠,但高度很緊 —— 牌桌各處的留白跟著縮,盡量不用捲動就看到操作區,
    手牌本身的縮小交給上面 .tile/.tile-small 的 min()(取 vw/vh 較小值)機制處理 */
 @media (max-height: 480px) and (orientation: landscape) {
