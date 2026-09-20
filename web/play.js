@@ -8,6 +8,7 @@ import {
   createGame,
   drawForCurrentPlayer,
   chooseAiDiscard,
+  chooseAiDiscardWithReason,
   discard,
   declareTsumo,
   computeCallOpportunities,
@@ -63,11 +64,12 @@ function describeUseful(usefulTiles) {
   return usefulTiles.map((u) => `${tileDisplayName(u.tile)}(剩${u.remaining}張)`).join('、');
 }
 
-// 場上(所有人棄牌堆)已經出現過的牌,用來判斷後盤下車時「現張」安不安全
-function visibleDiscardCodes(game) {
-  const seen = new Set();
-  for (const p of game.players) for (const t of p.discards) seen.add(tileCode(t));
-  return seen;
+// 這張牌屬於孤張拆牌順序(字牌 > 么九 > 2、8 > 中間張)裡的哪一類,純粹給老師的說明文字用
+function describeIsolationKind(tile) {
+  if (tile.suit === 'z') return '字牌';
+  if (tile.rank === 1 || tile.rank === 9) return '么九';
+  if (tile.rank === 2 || tile.rank === 8) return '2、8';
+  return '中間張';
 }
 
 function describeCallOption(option) {
@@ -146,12 +148,13 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
 
   // AI 老師:打牌前先套用麻將學園的技巧講評目前盤勢。這裡是真的 4 人對局,場上看得到
   // 其他 3 家的棄牌跟副露,所以除了牌效(第一章)之外,也能套用第二、四章跟巡目/防守
-  // 有關的部分 —— 直接呼叫 chooseAiDiscard(你也是它的其中一個使用者,跟 AI 對手同一套邏輯),
-  // 拿它的建議跟純效率最佳解比較,兩個不一樣的時候才特別解釋為什麼。
+  // 有關的部分 —— 直接呼叫 chooseAiDiscardWithReason(你也是它的其中一個使用者,跟 AI 對手
+  // 同一套邏輯),連同它回傳的「為什麼選這張」理由一起顯示,不會自己另外猜一套說法出來
+  // 跟實際判斷邏輯兜不起來。
   function buildTeacherAdvice(you) {
     const results = analyzeDiscardsGeneral(you.hand, you.melds, visibleTilesFor(you));
     const pureBest = results[0];
-    const recommendedCode = chooseAiDiscard(you, game);
+    const { code: recommendedCode, reason } = chooseAiDiscardWithReason(you, game);
     const recommended = results.find((r) => r.discard === recommendedCode) ?? pureBest;
 
     const turn = you.drawCount;
@@ -169,14 +172,19 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     } else if (recommended.discard === pureBest.discard) {
       lines.push(`老師建議:${describe(recommended)}。`);
     } else {
-      const isLateFold = turn >= 12 && pureBest.shanten > 0 && visibleDiscardCodes(game).has(recommended.discard);
-      const reason = isLateFold
-        ? '後盤還沒聽牌,優先打現張比較安全(第二章「巡目推進防禦標準」)'
-        : '兩種打法效率打平,但這張場上已經曝光比較多,對手比較不容易吃碰或胡走(第四章防守精準化的公開資訊版)';
+      const recommendedTile = tileFromCode(recommended.discard);
+      const reasonText =
+        reason === 'lateFold'
+          ? '後盤還沒聽牌,優先打現張比較安全(第二章「巡目推進防禦標準」)'
+          : reason === 'isolation'
+            ? `兩種打法效率打平,這張是孤張${describeIsolationKind(
+                recommendedTile
+              )},比較沒有發展性,效率打平時優先拆這種孤張(基礎牌理:字牌 > 么九 > 2、8 > 中間張)`
+            : reason === 'exposure'
+              ? '兩種打法效率打平,但這張場上已經曝光比較多,對手比較不容易吃碰或胡走(第四章防守精準化的公開資訊版)'
+              : '兩種打法效率完全一樣,打哪張都可以,這裡只是照預設順序挑一張,沒有特別理由';
       lines.push(
-        `效率最佳解是${describe(pureBest)},但老師建議改打「${tileDisplayName(
-          tileFromCode(recommended.discard)
-        )}」:${reason}。`
+        `效率最佳解是${describe(pureBest)},但老師建議改打「${tileDisplayName(recommendedTile)}」:${reasonText}。`
       );
     }
 
