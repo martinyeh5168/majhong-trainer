@@ -6,6 +6,8 @@ import {
   drawForCurrentPlayer,
   chooseAiDiscard,
   chooseAiDiscardWithReason,
+  markFuriten,
+  tenpaiWaitCodesFor,
   discard,
   declareTsumo,
   computeCallOpportunities,
@@ -284,6 +286,64 @@ test('applyRon:點炮胡牌會正確算分、把那張牌從棄牌堆移除、�
   assert.equal(game.result.type, 'ron');
   assert.equal(game.result.winnerSeat, 1);
   assert.equal(game.result.discarderSeat, 0);
+});
+
+test('markFuriten(過水):點炮不胡之後,整組聽牌(不只那一張)都不能再點炮胡', () => {
+  const game = createGame(fourPlayers());
+  // 聽 3p/6p
+  game.players[1].hand = parseHand('123456789m123p45p55s');
+  markFuriten(game.players[1]);
+
+  // 過水後,連原本沒放過來的另一張(3p)也不能胡,不是只擋 6p 那一張
+  assert.equal(findRonOpportunity(game, 0, { suit: 'p', rank: 3 }), null);
+  assert.equal(findRonOpportunity(game, 0, { suit: 'p', rank: 6 }), null);
+});
+
+test('markFuriten(過水):過水期間連自摸都不行,直到自己下一次打牌才解除', () => {
+  const game = createGame(fourPlayers());
+  const player = game.players[1];
+  player.hand = parseHand('123456789m123p45p55s'); // 聽 3p/6p
+  markFuriten(player);
+
+  // 讓牌牆下一張剛好摸到 6p(過水中的聽牌)
+  game.wall.unshift({ suit: 'p', rank: 6 });
+  game.currentSeat = 1;
+  const { canWin } = drawForCurrentPlayer(game);
+  assert.equal(canWin, false); // 過水中,自摸也不能宣告胡
+
+  // 過水期間打出一張牌之後才解除,之後重新聽到同一組牌就能再胡
+  discard(game, tileCode({ suit: 'p', rank: 6 })); // 把剛摸到的牌打出去,回到聽 3p/6p
+  assert.equal(findRonOpportunity(game, 0, { suit: 'p', rank: 6 }), 1);
+});
+
+test('markFuriten(過水):過水期間打出去的那張牌本身不受影響,打完牌才解除', () => {
+  const game = createGame(fourPlayers());
+  game.players[1].hand = parseHand('123456789m123p45p66s6s'); // 聽 3p/6p,多一張 6s 準備打出
+  markFuriten(game.players[1]);
+  assert.equal(findRonOpportunity(game, 0, { suit: 'p', rank: 6 }), null); // 過水中
+
+  game.currentSeat = 1;
+  discard(game, '6s'); // 打出跟聽牌無關的牌,過水解除
+
+  assert.equal(findRonOpportunity(game, 0, { suit: 'p', rank: 6 }), 1); // 可以再胡了
+});
+
+test('markFuriten(過水,declinedSelfDraw):摸到自摸牌卻選擇繼續打牌,一樣算過水到自己下一次打牌', () => {
+  const game = createGame(fourPlayers());
+  const discarderSeat = 0;
+  const player = game.players[1];
+  player.hand = parseHand('123456789m123p45p55s6p'); // 摸到 6p,整手已經胡了(17張)
+  game.currentSeat = 1;
+
+  // 正確用法:discard() 之前先把「放棄前」的聽牌範圍記下來,discard() 會清空過水狀態,
+  // 打完牌才重新設回去(對應 web/match.js、web/play.js 的 confirmDiscardCandidate/commitDiscard)。
+  const declinedWaitCodes = tenpaiWaitCodesFor(player, { declinedSelfDraw: true });
+  discard(game, '9m'); // 選擇不自摸,打別的牌
+  player.furitenTiles = declinedWaitCodes;
+
+  // 排除剛摸到的那張後,原本聽 3p/6p 這組都過水了
+  assert.equal(findRonOpportunity(game, discarderSeat, { suit: 'p', rank: 3 }), null);
+  assert.equal(findRonOpportunity(game, discarderSeat, { suit: 'p', rank: 6 }), null);
 });
 
 test('findAnkanOptions:手上剛好 4 張一樣才算暗槓機會', () => {

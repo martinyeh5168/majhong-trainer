@@ -5,6 +5,7 @@
 
 import { allTileTypes, allFlowerTypes, isFlower, tileCode, tileFromCode } from './tiles.js';
 import { checkWin } from './winCheck.js';
+import { getWaits } from './tingCheck.js';
 import { analyzeDiscards } from './efficiency.js';
 import { calculateShanten } from './shanten.js';
 import { computeScore } from './scoring.js';
@@ -55,6 +56,7 @@ export function createGame(playerConfigs, { includeFlowers = false } = {}) {
     discards: [],
     melds: [],
     flowers: [],
+    furitenTiles: [], // 過水:曾經放棄的胡牌機會,見 markFuriten
   }));
 
   for (const player of players) {
@@ -82,7 +84,38 @@ export function createGame(playerConfigs, { includeFlowers = false } = {}) {
 
 function playerHasWinningHand(player) {
   // player.hand 在自己回合摸完牌後會有 17 張(扣掉吃碰的部分),直接檢查整手能不能胡
+  const winningTile = player.hand[player.hand.length - 1];
+  if (winningTile && isFuritenOn(player, winningTile)) return false; // 過水中,自摸也不能胡
   return checkWin({ concealedTiles: player.hand, melds: player.melds }).win;
+}
+
+// 過水:算出玩家目前(或放棄自摸前)完整的聽牌範圍,回傳一組 tile code。
+// declinedSelfDraw:true 代表要算「放棄自摸前」的聽牌範圍 —— 手牌最後一張是剛摸到、
+// 選擇不宣告胡的那張,要先排除才是原本的聽牌雛形。
+export function tenpaiWaitCodesFor(player, { declinedSelfDraw = false } = {}) {
+  const concealedTiles = declinedSelfDraw ? player.hand.slice(0, -1) : player.hand;
+  return getWaits({ concealedTiles, melds: player.melds }).map((w) => w.code);
+}
+
+// 過水:玩家原本可以胡牌卻選擇不胡(點炮不胡,或自摸到胡牌卻選擇繼續打牌),
+// 整組聽牌(不是只有那一張)在此之後都不能胡、自摸也不例外,直到自己下一次打牌
+// (discard())才解除。
+//
+// 注意:如果是「放棄自摸、緊接著要打牌」的情況,不要直接呼叫這個函式 ——
+// discard() 內部會清空過水狀態,在它之前呼叫會被立刻蓋掉。正確做法是:先用
+// tenpaiWaitCodesFor(player, { declinedSelfDraw: true }) 把聽牌範圍記下來,
+// 呼叫 discard() 之後再把結果設回 player.furitenTiles(web/match.js、web/play.js
+// 的 confirmDiscardCandidate/commitDiscard 就是這樣做的)。
+export function markFuriten(player, options = {}) {
+  player.furitenTiles = tenpaiWaitCodesFor(player, options);
+}
+
+function clearFuriten(player) {
+  player.furitenTiles = [];
+}
+
+function isFuritenOn(player, tile) {
+  return (player.furitenTiles ?? []).includes(tileCode(tile));
 }
 
 /**
@@ -258,6 +291,7 @@ export function discard(game, discardCode) {
   const [tile] = player.hand.splice(idx, 1);
   player.discards.push(tile);
   game.log.push({ type: 'discard', seat: player.seat, tile: discardCode });
+  clearFuriten(player); // 打牌解除過水;如果這次是放棄自摸後要打牌,呼叫端要在這之後重新設定
   return tile;
 }
 
@@ -513,6 +547,7 @@ export function applyMinkan(game, callerSeat, discarderSeat, discardedTile) {
     return true;
   });
   caller.melds.push({ type: 'minkan', tiles: [discardedTile, discardedTile, discardedTile, discardedTile] });
+  clearFuriten(caller); // 明槓也算過水的解除動作
 
   game.log.push({ type: 'minkan', seat: callerSeat, tile: code });
   game.currentSeat = callerSeat;
@@ -563,6 +598,7 @@ export function applyAnkan(game, seat, code) {
     return true;
   });
   player.melds.push({ type: 'ankan', tiles: [tileTemplate, tileTemplate, tileTemplate, tileTemplate] });
+  clearFuriten(player); // 暗槓也算過水的解除動作
   game.log.push({ type: 'ankan', seat, tile: code });
 
   const drewTile = drawReplacementTile(game, player);
@@ -588,6 +624,7 @@ export function beginKakan(game, seat, code) {
   const player = game.players[seat];
   const idx = player.hand.findIndex((t) => tileCode(t) === code);
   const [tile] = player.hand.splice(idx, 1);
+  clearFuriten(player); // 加槓也算過水的解除動作
   return tile;
 }
 
@@ -600,6 +637,7 @@ export function findChankanOpportunity(game, kanSeat, tile) {
   for (let i = 1; i < n; i++) {
     const seat = (kanSeat + i) % n;
     const player = game.players[seat];
+    if (isFuritenOn(player, tile)) continue; // 過水中,這張不能搶
     const candidateHand = [...player.hand, tile];
     if (checkWin({ concealedTiles: candidateHand, melds: player.melds }).win) {
       return seat;
@@ -663,6 +701,7 @@ export function findRonOpportunity(game, discarderSeat, tile) {
   for (let i = 1; i < n; i++) {
     const seat = (discarderSeat + i) % n;
     const player = game.players[seat];
+    if (isFuritenOn(player, tile)) continue; // 過水中,這張不能胡
     const candidateHand = [...player.hand, tile];
     if (checkWin({ concealedTiles: candidateHand, melds: player.melds }).win) {
       return seat;

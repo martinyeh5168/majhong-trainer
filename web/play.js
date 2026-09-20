@@ -26,6 +26,8 @@ import {
   applyChankan,
   finalizeKakan,
   applyMinkan,
+  markFuriten,
+  tenpaiWaitCodesFor,
 } from '../src/game.js';
 import { analyzeDiscardsGeneral } from '../src/efficiency.js';
 import { calculateShanten } from '../src/shanten.js';
@@ -419,7 +421,12 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
     pendingDiscardPreview = null;
 
     const discarderSeat = 0;
+    const player = game.players[discarderSeat];
+    // 摸到能自摸的牌卻選擇繼續打牌,算過水:整組聽牌都不能胡,直到自己下一次打牌才解除。
+    // 要先把「放棄前」的聽牌範圍記下來,discard() 會先清空過水狀態,打完牌才重新設回去。
+    const declinedWaitCodes = pendingCanWin ? tenpaiWaitCodesFor(player, { declinedSelfDraw: true }) : null;
     const tile = discard(game, code);
+    if (declinedWaitCodes) player.furitenTiles = declinedWaitCodes;
     pendingDrewCode = null;
     pendingCanWin = false;
     pendingIsRinshan = false;
@@ -546,6 +553,7 @@ export function createPlayController({ renderTileRow, onActiveChange }) {
       applyRon(game, 0, discarderSeat, tile);
       resolved = true; // 遊戲結束了
     } else {
+      markFuriten(game.players[0]); // 點炮不胡,過水:整組聽牌都不能胡,直到自己下一次打牌才解除
       resolved = resolveCallOpportunities(discarderSeat, tile); // 不胡的話,照樣檢查有沒有人要吃碰
     }
 

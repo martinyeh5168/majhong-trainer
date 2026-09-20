@@ -36,6 +36,8 @@ import {
   applyChankan,
   finalizeKakan,
   applyMinkan,
+  markFuriten,
+  tenpaiWaitCodesFor,
 } from '../src/game.js';
 
 const AI_DISCARD_PAUSE_MS = 1000; // AI 出牌後,沒人需要決定的話閃爍 1 秒就換下一家(比人機對局的 2 秒快)
@@ -534,7 +536,12 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     const code = pendingDiscardChoice;
     pendingDiscardChoice = null;
     const discarderSeat = humanSeat();
+    const player = game.players[discarderSeat];
+    // 摸到能自摸的牌卻選擇繼續打牌,算過水:整組聽牌都不能胡,直到自己下一次打牌才解除。
+    // 要先把「放棄前」的聽牌範圍記下來,discard() 會先清空過水狀態,打完牌才重新設回去。
+    const declinedWaitCodes = pendingCanWin ? tenpaiWaitCodesFor(player, { declinedSelfDraw: true }) : null;
     const tile = discard(game, code);
+    if (declinedWaitCodes) player.furitenTiles = declinedWaitCodes;
     pendingDrewCode = null;
     pendingCanWin = false;
     pendingIsRinshan = false;
@@ -640,6 +647,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
       applyRon(game, mySeat, discarderSeat, tile);
       resolved = true;
     } else {
+      markFuriten(game.players[mySeat]); // 點炮不胡,過水:整組聽牌都不能胡,直到自己下一次打牌才解除
       resolved = resolveCallOpportunities(discarderSeat, tile);
     }
 
