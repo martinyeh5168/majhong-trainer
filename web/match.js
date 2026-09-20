@@ -265,9 +265,11 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     if (result.type === 'tsumo') {
       const winnerSeat = result.seat;
       const winnerIsDealer = winnerSeat === 0;
+      // 天胡/地胡本身已經直接視為總台數,不跟莊家台疊加(見 src/scoring.js)
+      const isLimitHand = result.score.items.some((item) => item.key === 'tianHu' || item.key === 'diHu');
       tenpaiBonusTai = tenpaiDeclared[winnerSeat] ? TENPAI_BONUS_TAI : 0;
       // 莊家台:新莊 1 台,每連莊一次 +2 台(莊連1=3台、莊連2=5台...),只有莊家自己胡牌才算
-      dealerBonusTai = winnerIsDealer ? repeatCount * 2 - 1 : 0;
+      dealerBonusTai = winnerIsDealer && !isLimitHand ? repeatCount * 2 - 1 : 0;
       totalTaiWithBonus = result.score.total + tenpaiBonusTai + dealerBonusTai;
       const amount = baseAmount({ total: totalTaiWithBonus });
       winnerIdentityIndex = identityOfSeat(winnerSeat);
@@ -284,9 +286,11 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
     } else if (result.type === 'ron') {
       const { winnerSeat, discarderSeat } = result;
       const winnerIsDealer = winnerSeat === 0;
+      // 天胡/地胡只會發生在自摸,點炮不會有這兩項,但還是統一判斷避免以後邏輯改動時漏掉
+      const isLimitHand = result.score.items.some((item) => item.key === 'tianHu' || item.key === 'diHu');
       tenpaiBonusTai = tenpaiDeclared[winnerSeat] ? TENPAI_BONUS_TAI : 0;
       // 莊家台:新莊 1 台,每連莊一次 +2 台(莊連1=3台、莊連2=5台...),只有莊家自己胡牌才算
-      dealerBonusTai = winnerIsDealer ? repeatCount * 2 - 1 : 0;
+      dealerBonusTai = winnerIsDealer && !isLimitHand ? repeatCount * 2 - 1 : 0;
       totalTaiWithBonus = result.score.total + tenpaiBonusTai + dealerBonusTai;
       const amount = baseAmount({ total: totalTaiWithBonus });
       const discarderIsDealer = discarderSeat === 0;
