@@ -104,15 +104,92 @@ export function createPracticeController({ renderTileRow }) {
       .join('、');
   }
 
+  // AI 老師提示:打牌前先套用麻將學園的技巧講評目前盤勢,巡目 = 這一局已經摸過幾次牌
+  // (只有自己一家在練習,沒有其他玩家可以讀牌/防守,所以只套用第一、二章跟牌效跟巡目相關的部分)。
+  function currentTurn() {
+    return discards.length + 1;
+  }
+
+  function currentPhase(turn) {
+    if (turn <= 6) return '前盤';
+    if (turn <= 11) return '中盤';
+    return '後盤';
+  }
+
+  function buildTeacherAdvice() {
+    const visibleTiles = [...hand, ...discards];
+    const results = analyzeDiscardsGeneral(hand, [], visibleTiles);
+    const best = results[0];
+    const turn = currentTurn();
+    const phase = currentPhase(turn);
+
+    const lines = [];
+
+    if (best.shanten <= -1) {
+      lines.push('這手已經可以胡了,摸到就自摸,別想太多。');
+    } else if (best.shanten === 0) {
+      lines.push(
+        `目前最好打法是打「${tileDisplayName(tileFromCode(best.discard))}」,打出去就聽 ${describeUseful(
+          best.usefulTiles
+        )}。`
+      );
+    } else {
+      lines.push(
+        `目前最好打法是打「${tileDisplayName(tileFromCode(best.discard))}」:${describeShanten(
+          best.shanten
+        )},期望進張 ${best.ukeire} 張。`
+      );
+    }
+
+    if (phase === '前盤') {
+      lines.push('第二章「巡目推進防禦標準」:前盤效率最大化,出牌路徑「字牌 → 么九孤張 → 偏張」,先拆用不到的孤張。');
+    } else if (phase === '中盤') {
+      lines.push('第二章「巡目推進防禦標準」:中盤是危險嗅探期,若還落後兩進聽以上又沒有大牌潛力,可以考慮停止衝效率。');
+    } else if (best.shanten > 0) {
+      lines.push('第二章「巡目推進防禦標準」:後盤(12巡後)還沒聽牌建議無條件下車,優先打自己棄過的牌,不要硬拚生張。');
+    } else {
+      lines.push('第二章「巡目推進防禦標準」:後盤已經聽牌了,可以放心進攻。');
+    }
+
+    return { turn, phase, lines };
+  }
+
+  function renderTeacherHint(container) {
+    const advice = buildTeacherAdvice();
+    const box = document.createElement('div');
+    box.className = 'teacher-hint';
+
+    const title = document.createElement('p');
+    title.className = 'teacher-hint-title';
+    title.textContent = '🀄 AI 老師';
+    box.appendChild(title);
+
+    for (const line of advice.lines) {
+      const p = document.createElement('p');
+      p.className = 'teacher-hint-line';
+      p.textContent = line;
+      box.appendChild(p);
+    }
+
+    container.appendChild(box);
+  }
+
   function render() {
     if (!container) return;
     container.innerHTML = '';
 
     const rate = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+    const headerRow = document.createElement('div');
+    headerRow.className = 'practice-header-row';
     const header = document.createElement('p');
     header.className = 'hint';
     header.textContent = `這回合共答對 ${stats.correct} / ${stats.total} 次(正確率 ${rate}%)・牌牆剩 ${wall.length} 張・發牌會限制在 3 進聽以內`;
-    container.appendChild(header);
+    const turnBadge = document.createElement('span');
+    turnBadge.className = 'practice-turn-badge';
+    turnBadge.textContent = `第 ${currentTurn()} 巡`;
+    headerRow.appendChild(header);
+    headerRow.appendChild(turnBadge);
+    container.appendChild(headerRow);
 
     if (hand.length < 17) {
       const doneP = document.createElement('p');
@@ -157,6 +234,8 @@ export function createPracticeController({ renderTileRow }) {
       container.appendChild(actionRow);
       return;
     }
+
+    if (!lastResult) renderTeacherHint(container);
 
     container.appendChild(
       renderTileRow(sortTiles(hand), {

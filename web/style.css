@@ -285,6 +285,65 @@ h1 {
   cursor: pointer;
 }
 
+/* 隨機練習頁面頂部:左邊統計文字、右上角巡目徽章 */
+.practice-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.practice-header-row .hint {
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
+}
+
+.practice-turn-badge {
+  flex-shrink: 0;
+  background: var(--tile-bg);
+  border: 1px solid var(--tile-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* 隨機練習頁面中間:AI 老師在打牌前先講評盤勢(套用麻將學園的技巧) */
+.teacher-hint {
+  background: var(--tile-bg);
+  border: 1px solid var(--tile-border);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+
+.teacher-hint-title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.teacher-hint-line {
+  margin: 4px 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* 人機對局:AI 老師提示卡放在牌桌中間(對手座位下面、自己手牌上面),
+   跟座位卡片一樣限制最大寬度,不會在寬螢幕上被拉得過寬。 */
+.teacher-hint-table {
+  max-width: 640px;
+  margin: 12px auto;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+}
+
 /* 隨機練習頁面的按鈕(確認/撤回重選/繼續/開始新一輪)一律放在手牌下面置中 */
 .practice-action-row {
   display: flex;
@@ -848,4 +907,132 @@ details summary {
   .your-hand-panel {
     padding: 8px 12px;
   }
+}
+
+/* ---- 麻將學園(策略教學文章) ---- */
+
+.academy-toc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.academy-toc-item {
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--tile-bg);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.academy-toc-item:hover {
+  border-color: var(--accent);
+}
+
+.academy-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.academy-nav-footer {
+  margin-top: 24px;
+  margin-bottom: 0;
+  justify-content: space-between;
+}
+
+.academy-article h2 {
+  margin-top: 0;
+}
+
+.academy-h4 {
+  font-size: 0.92rem;
+  color: var(--accent);
+  margin: 16px 0 4px;
+}
+
+.academy-sublist {
+  margin-top: 4px;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.academy-formula {
+  font-family: 'SF Mono', Menlo, monospace;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: inline-block;
+  margin: 4px 0 12px;
+}
+
+.academy-tile-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 6px 0 14px;
+}
+
+.academy-tile-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.academy-tile-group-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.academy-tile-group-row {
+  display: flex;
+  gap: 2px;
+}
+
+.academy-chip {
+  display: inline-flex;
+  width: clamp(24px, min(2.2vw, 4.6vh), 44px);
+  height: clamp(32px, min(3vw, 6.2vh), 58px);
+}
+
+.academy-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid var(--tile-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  background: #fffdf6;
+}
+
+.academy-table-wrap {
+  overflow-x: auto;
+  margin: 6px 0 16px;
+}
+
+.academy-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+.academy-table th,
+.academy-table td {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.academy-table th {
+  background: var(--tile-bg);
+  white-space: nowrap;
 }

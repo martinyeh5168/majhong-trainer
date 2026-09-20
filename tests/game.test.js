@@ -5,6 +5,7 @@ import {
   buildWall,
   drawForCurrentPlayer,
   chooseAiDiscard,
+  chooseAiDiscardWithReason,
   discard,
   declareTsumo,
   computeCallOpportunities,
@@ -116,7 +117,7 @@ function runFullGame(game) {
     }
     game.mustDiscard = false;
     const player = game.players[game.currentSeat];
-    const discardCode = chooseAiDiscard(player);
+    const discardCode = chooseAiDiscard(player, game);
     const discarderSeat = game.currentSeat;
     const tile = discard(game, discardCode);
     resolveCalls(game, discarderSeat, tile);
@@ -146,7 +147,7 @@ test('discard 不會自動輪到下一家,要另外呼叫 skipCall 才會換人'
   const game = createGame(fourPlayers());
   drawForCurrentPlayer(game);
   const player = game.players[0];
-  const discardCode = chooseAiDiscard(player);
+  const discardCode = chooseAiDiscard(player, game);
   discard(game, discardCode);
   assert.equal(game.currentSeat, 0); // 還沒換人
 
@@ -450,4 +451,34 @@ test('drawForCurrentPlayer 摸到花牌會自動收進 flowers 並補摸下一�
     }
   }
   assert.equal(sawFlowerDuringDraw, true);
+});
+
+test('chooseAiDiscardWithReason:效率打平時,先照孤張拆牌順序(字牌 > 么九 > 2、8)決勝負', () => {
+  const game = createGame(fourPlayers());
+  // 111m/456p/789s/22m 已經是完整雛形,剩下北(字牌孤張)、九筒(么九孤張)、一索(么九孤張)三張多餘的孤張,
+  // 效率完全打平,應該優先拆字牌
+  const hand = parseHand('111m456p789s22m4z9p1s');
+  const player = { hand, seat: 0, drawCount: 1, melds: [] };
+  const result = chooseAiDiscardWithReason(player, game);
+  assert.equal(result.code, '4z');
+  assert.equal(result.reason, 'isolation');
+});
+
+test('chooseAiDiscardWithReason:孤張拆牌順序也打平、場上又沒人打過牌時,誠實回傳 tie 而不是亂編曝光理由', () => {
+  const game = createGame(fourPlayers());
+  // 北、中都是字牌孤張(同一類),場上大家都還沒打過牌,曝光度也是 0 比 0
+  const hand = parseHand('111m456p789s22m4z5z1s');
+  const player = { hand, seat: 0, drawCount: 1, melds: [] };
+  const result = chooseAiDiscardWithReason(player, game);
+  assert.equal(result.reason, 'tie');
+});
+
+test('chooseAiDiscardWithReason:孤張類別打平時,場上真的曝光比較多的那張才優先打', () => {
+  const game = createGame(fourPlayers());
+  const hand = parseHand('111m456p789s22m4z5z1s');
+  const player = { hand, seat: 0, drawCount: 1, melds: [] };
+  game.players[1].discards.push({ suit: 'z', rank: 5 }); // 別家已經打過一張中,曝光度真的不一樣了
+  const result = chooseAiDiscardWithReason(player, game);
+  assert.equal(result.code, '5z');
+  assert.equal(result.reason, 'exposure');
 });

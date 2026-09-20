@@ -114,30 +114,136 @@ export function drawForCurrentPlayer(game) {
   return { drewTile, canWin };
 }
 
-/**
- * AI(或代打)決定要打哪張。
- * 先用向聽數挑「打完之後離聽牌最近」的牌,如果好幾張打完向聽數一樣,
- * 已經聽牌的話再用進張數(切牌效率引擎)在裡面挑聽牌範圍最大的那張。
- */
-export function chooseAiDiscard(player) {
+// 效率最好的候選牌(可能不只一張平手),向聽數打平時再用切牌效率引擎依進張數排序。
+// 抽出來給 chooseAiDiscard 跟麻將學園技巧共用,避免同一套邏輯維護兩份。
+function bestDiscardCandidates(player) {
   const uniqueCodes = [...new Set(player.hand.map(tileCode))];
 
   const candidates = uniqueCodes.map((code) => {
     const idx = player.hand.findIndex((t) => tileCode(t) === code);
     const remainingHand = [...player.hand.slice(0, idx), ...player.hand.slice(idx + 1)];
-    return { code, shanten: calculateShanten(remainingHand, player.melds.length) };
+    return { code, tile: player.hand[idx], shanten: calculateShanten(remainingHand, player.melds.length) };
   });
 
   const bestShanten = Math.min(...candidates.map((c) => c.shanten));
-  const bestCandidates = candidates.filter((c) => c.shanten === bestShanten);
+  let bestCandidates = candidates.filter((c) => c.shanten === bestShanten);
+  let ukeireByCode = null;
 
   if (bestShanten === 0 && bestCandidates.length > 1) {
     const results = analyzeDiscards(player.hand, player.melds, player.hand);
-    const byUkeire = new Map(results.map((r) => [r.discard, r.ukeire]));
-    bestCandidates.sort((a, b) => (byUkeire.get(b.code) ?? 0) - (byUkeire.get(a.code) ?? 0));
+    ukeireByCode = new Map(results.map((r) => [r.discard, r.ukeire]));
+    bestCandidates = [...bestCandidates].sort(
+      (a, b) => (ukeireByCode.get(b.code) ?? 0) - (ukeireByCode.get(a.code) ?? 0)
+    );
   }
 
-  return bestCandidates[0].code;
+  return { bestCandidates, bestShanten, ukeireByCode };
+}
+
+// 場上(所有人棄牌堆 + 副露)已經曝光的牌,依 code 算出現過幾張 —— 用來判斷「現張」安全度,
+// 也用來估計某張牌對其他家來說還剩多少張(曝光越多張,對手越不可能吃碰湊到)。
+function visibleTileCounts(game) {
+  const counts = new Map();
+  const bump = (t) => counts.set(tileCode(t), (counts.get(tileCode(t)) ?? 0) + 1);
+  for (const p of game.players) {
+    for (const t of p.discards) bump(t);
+    for (const m of p.melds) for (const t of m.tiles) bump(t);
+  }
+  return counts;
+}
+
+// 麻將學園第二章「巡目推進防禦標準」:第 12 巡以後還沒聽牌,不硬拚效率,優先打現張避免放槍。
+const LATE_GAME_FOLD_TURN = 12;
+
+// 這張牌在目前手牌裡算不算「孤張」:自己沒湊成對子,字牌一律孤張(不可能組順子),
+// 數牌則要看手上有沒有同花色、點數相差 2 以內的牌能當搭子雛形。
+function isTileIsolated(tile, hand) {
+  const sameRankCount = hand.filter((t) => t.suit === tile.suit && t.rank === tile.rank).length;
+  if (sameRankCount >= 2) return false;
+  if (tile.suit === 'z') return true;
+  const hasNearby = hand.some(
+    (t) => t.suit === tile.suit && t.rank !== tile.rank && Math.abs(t.rank - tile.rank) <= 2
+  );
+  return !hasNearby;
+}
+
+// 麻將基礎牌理:孤張要拆的話,優先順序是「字牌 > 么九(1、9) > 2、8 > 中間張(3~7)」,
+// 字牌只能靠碰/摸自己成對成刻,么九只能往一個方向組順子,2、8 兩個方向都能組但終究不如中間張靈活。
+// 回傳數字越小代表越優先拆掉;不是孤張就回傳 null,代表這條規則不適用。
+function isolationClass(tile, hand) {
+  if (!isTileIsolated(tile, hand)) return null;
+  if (tile.suit === 'z') return 0;
+  if (tile.rank === 1 || tile.rank === 9) return 1;
+  if (tile.rank === 2 || tile.rank === 8) return 2;
+  return 3;
+}
+
+/**
+ * AI(或代打)決定要打哪張,連同「為什麼選這張」的理由一起回傳,方便 UI 忠實顯示解釋
+ * (避免像之前那樣,解釋文字用固定範本、跟實際判斷邏輯兜不起來)。
+ * 先用向聽數挑「打完之後離聽牌最近」的牌,如果好幾張打完向聽數一樣,
+ * 已經聽牌的話再用進張數(切牌效率引擎)在裡面挑聽牌範圍最大的那張。
+ *
+ * game(選填)有傳的話,額外套用麻將學園教的三個技巧,沒傳就維持純效率打法:
+ * - 第二章「巡目推進防禦標準」:後盤沒聽牌時優先打現張。reason: 'lateFold'
+ * - 基礎牌理「孤張拆牌順序」:效率打平時,先拆字牌,再拆么九,再拆 2、8。reason: 'isolation'
+ * - 第四章「防守精準化」的公開資訊版本:前面還打平的話,才看場上曝光度,優先打已經曝光比較多張
+ *   的牌(不偷看任何人的手牌,純粹統計場況;曝光度也打平——例如根本還沒人打過牌——就不套用這條,
+ *   避免講出「這張曝光比較多」這種其實不成立的理由)。reason: 'exposure'
+ * 三條都打平的話回傳 reason: 'tie',誠實說這是隨便挑的,不是有什麼特別理由。
+ * 一路上沒有平手需要決勝負的話,回傳 reason: 'best'。
+ */
+export function chooseAiDiscardWithReason(player, game) {
+  const { bestCandidates, bestShanten, ukeireByCode } = bestDiscardCandidates(player);
+
+  if (game && player.drawCount >= LATE_GAME_FOLD_TURN && bestShanten > 0) {
+    const seen = new Set();
+    for (const p of game.players) for (const t of p.discards) seen.add(tileCode(t));
+    const safeTile = player.hand.find((t) => seen.has(tileCode(t)));
+    if (safeTile) return { code: tileCode(safeTile), reason: 'lateFold' };
+  }
+
+  if (game && bestCandidates.length > 1) {
+    let tiedPool = bestCandidates;
+    if (bestShanten === 0 && ukeireByCode) {
+      const topUkeire = ukeireByCode.get(bestCandidates[0].code) ?? 0;
+      tiedPool = bestCandidates.filter((c) => (ukeireByCode.get(c.code) ?? 0) === topUkeire);
+    }
+    if (tiedPool.length > 1) {
+      // 先照孤張拆牌順序(字牌 > 么九 > 2、8)決勝負
+      const classed = tiedPool
+        .map((c) => ({ candidate: c, cls: isolationClass(tileFromCode(c.code), player.hand) }))
+        .filter((x) => x.cls !== null);
+      if (classed.length > 0) {
+        const bestCls = Math.min(...classed.map((x) => x.cls));
+        const top = classed.filter((x) => x.cls === bestCls);
+        if (top.length === 1) return { code: top[0].candidate.code, reason: 'isolation' };
+        tiedPool = top.map((x) => x.candidate); // 同一類還打平,才繼續往下比曝光度
+      }
+
+      if (tiedPool.length > 1) {
+        const exposure = visibleTileCounts(game);
+        const maxExposure = Math.max(...tiedPool.map((c) => exposure.get(c.code) ?? 0));
+        if (maxExposure > 0) {
+          const sorted = [...tiedPool].sort((a, b) => (exposure.get(b.code) ?? 0) - (exposure.get(a.code) ?? 0));
+          return { code: sorted[0].code, reason: 'exposure' };
+        }
+        return { code: tiedPool[0].code, reason: 'tie' };
+      }
+    }
+  }
+
+  return { code: bestCandidates[0].code, reason: 'best' };
+}
+
+// 整合麻將學園技巧之前的版本,只留著給模擬腳本比較「整合前後差多少」用,
+// 正式的人機對局/麻將實戰(web/play.js、web/match.js)都改用上面 chooseAiDiscardWithReason 的加強版了。
+export function chooseAiDiscardBasic(player) {
+  return bestDiscardCandidates(player).bestCandidates[0].code;
+}
+
+export function chooseAiDiscard(player, game) {
+  return chooseAiDiscardWithReason(player, game).code;
 }
 
 /**
@@ -212,12 +318,28 @@ export function computeCallOpportunities(game, discarderSeat, tile) {
   return groups;
 }
 
+// 這副面子(含正在組成的這一組)是不是都不是順子 —— 對對胡方向的必要條件
+function allNonSequence(melds) {
+  return melds.every((m) => m.type !== 'chi');
+}
+
+// 手牌 + 已副露 + 正在組成的這一組,扣掉字牌後是不是都集中在同一花色 —— 混一色/清一色方向
+function isFlushDirection(remainingHand, meldsIncludingThis) {
+  const tiles = [...remainingHand, ...meldsIncludingThis.flatMap((m) => m.tiles)];
+  const suits = new Set(tiles.filter((t) => t.suit !== 'z').map((t) => t.suit));
+  return suits.size <= 1;
+}
+
 /**
- * AI 決定要不要吃碰:只有在「叫了之後向聽數會變好」才叫,否則放棄。
+ * 麻將學園第二章「門清價值 vs 吃碰代價」的鳴牌門檻:不是只要向聽數變好就叫,
+ * 而是叫了之後要嘛直接聽牌、要嘛看得出混一色/對對胡這種大牌方向,才值得放棄門清。
+ * (文件裡另一個觸發條件「阻斷莊家連莊」需要跨局的連莊局勢資訊,這個單局引擎沒有追蹤,先不處理。)
  * group 是 computeCallOpportunities 回傳陣列裡屬於這位玩家的那一組。
  * 回傳選中的 option(可能是 {type:'pon'} 或 {type:'chi', otherRanks}),不叫就回傳 null。
  */
-export function chooseAiCallDecision(player, group, discardedTile) {
+// 整合麻將學園技巧之前的版本(只要向聽數變好就叫),只留著給模擬腳本比較用,
+// 正式的人機對局/麻將實戰都改用下面 chooseAiCallDecision 的加強版了。
+export function chooseAiCallDecisionBasic(player, group, discardedTile) {
   const beforeShanten = calculateShanten(player.hand, player.melds.length);
   let best = null;
 
@@ -253,10 +375,64 @@ export function chooseAiCallDecision(player, group, discardedTile) {
     }
 
     const afterShanten = calculateShanten(remainingHand, player.melds.length + 1);
-    // 向聽數打平的話優先選槓:多一台、還能多補一張牌,划算
     const better =
       !best || afterShanten < best.afterShanten || (afterShanten === best.afterShanten && option.type === 'kan');
     if (afterShanten < beforeShanten && better) {
+      best = { ...option, afterShanten };
+    }
+  }
+
+  return best;
+}
+
+export function chooseAiCallDecision(player, group, discardedTile) {
+  const beforeShanten = calculateShanten(player.hand, player.melds.length);
+  let best = null;
+
+  for (const option of group.options) {
+    let remainingHand;
+    let formedMeld;
+    if (option.type === 'pon') {
+      const code = tileCode(discardedTile);
+      let removed = 0;
+      remainingHand = player.hand.filter((t) => {
+        if (removed < 2 && tileCode(t) === code) {
+          removed++;
+          return false;
+        }
+        return true;
+      });
+      formedMeld = { type: 'pon', tiles: [discardedTile, discardedTile, discardedTile] };
+    } else if (option.type === 'kan') {
+      const code = tileCode(discardedTile);
+      let removed = 0;
+      remainingHand = player.hand.filter((t) => {
+        if (removed < 3 && tileCode(t) === code) {
+          removed++;
+          return false;
+        }
+        return true;
+      });
+      formedMeld = { type: 'kan', tiles: [discardedTile, discardedTile, discardedTile, discardedTile] };
+    } else {
+      remainingHand = [...player.hand];
+      for (const rank of option.otherRanks) {
+        const code = tileCode({ suit: discardedTile.suit, rank });
+        const idx = remainingHand.findIndex((t) => tileCode(t) === code);
+        remainingHand.splice(idx, 1);
+      }
+      formedMeld = { type: 'chi', tiles: [discardedTile] };
+    }
+
+    const afterShanten = calculateShanten(remainingHand, player.melds.length + 1);
+    const meldsIncludingThis = [...player.melds, formedMeld];
+    const reachesTenpai = afterShanten === 0;
+    const bigHandDirection =
+      isFlushDirection(remainingHand, meldsIncludingThis) || (option.type !== 'chi' && allNonSequence(meldsIncludingThis));
+    // 向聽數打平的話優先選槓:多一台、還能多補一張牌,划算
+    const better =
+      !best || afterShanten < best.afterShanten || (afterShanten === best.afterShanten && option.type === 'kan');
+    if (afterShanten < beforeShanten && (reachesTenpai || bigHandDirection) && better) {
       best = { ...option, afterShanten };
     }
   }

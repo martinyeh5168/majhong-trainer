@@ -437,7 +437,7 @@ export function createMatchController({ renderTileRow, onActiveChange }) {
 
   function performAiDiscardStep(seat) {
     const player = game.players[seat];
-    const discardCode = chooseAiDiscard(player);
+    const discardCode = chooseAiDiscard(player, game);
     const tile = discard(game, discardCode);
     lastDiscard = { seat, code: discardCode };
     // AI 一律貪心宣告:打完這張牌如果聽牌了,馬上叫聽(不像真人可以自己選擇要不要叫)

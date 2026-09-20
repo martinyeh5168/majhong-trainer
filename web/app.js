@@ -7,23 +7,10 @@ import { efficiencyQuestions, waitQuestions, scoringQuestions, safetyQuestions }
 import { createPlayController } from './play.js';
 import { createPracticeController } from './practice.js';
 import { createMatchController } from './match.js';
+import { createAcademyController } from './academy.js';
+import { tileImageSrc } from './tileAssets.js';
 
 const ALL_QUESTIONS = [...efficiencyQuestions, ...waitQuestions, ...scoringQuestions, ...safetyQuestions];
-
-// 牌面圖檔來自 FluffyStuff/riichi-mahjong-tiles(CC0 公有領域,免費可用)
-const SUIT_FILE = { m: 'Man', p: 'Pin', s: 'Sou' };
-const HONOR_FILE = ['Ton', 'Nan', 'Shaa', 'Pei', 'Chun', 'Hatsu', 'Haku']; // z1~z7:東南西北中發白
-const FLOWER_FILE = ['Plum', 'Orchid', 'Chrysanthemum', 'Bamboo', 'Spring', 'Summer', 'Autumn', 'Winter']; // f1~f8:梅蘭菊竹春夏秋冬
-
-function tileImageSrc(tile) {
-  const name =
-    tile.suit === 'z'
-      ? HONOR_FILE[tile.rank - 1]
-      : tile.suit === 'f'
-      ? FLOWER_FILE[tile.rank - 1]
-      : `${SUIT_FILE[tile.suit]}${tile.rank}`;
-  return `web/tiles/${name}.svg`;
-}
 
 function parseMelds(rawMelds) {
   if (!rawMelds) return [];
@@ -704,6 +691,13 @@ function renderQuestion() {
     return;
   }
 
+  if (state.filter === 'academy') {
+    els.progress.textContent = '';
+    els.nextBtn.hidden = true;
+    academyController.mount(els.card);
+    return;
+  }
+
   const list = currentList();
 
   els.card.innerHTML = '';
@@ -754,6 +748,7 @@ const playController = createPlayController({
   },
 });
 const practiceController = createPracticeController({ renderTileRow });
+const academyController = createAcademyController();
 const matchController = createMatchController({
   renderTileRow,
   onActiveChange: (isActive) => {
