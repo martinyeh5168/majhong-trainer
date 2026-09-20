@@ -73,6 +73,15 @@ function scoreDecomposition(decomposition, hand, context, winningTileCode, waitC
     if (tai > 0) items.push({ key, name, tai });
   };
 
+  // 天胡/地胡直接視為總台數,不跟基本台/門清/自摸/花牌等其他項目疊加 ——
+  // 符合條件就整手只算這一項,直接把結果回傳掉,不繼續往下算。
+  if (context.isFirstTurn && context.selfDrawn) {
+    if (context.isDealer) {
+      return { items: [{ key: 'tianHu', name: '天胡', tai: rules.tianHu }], total: rules.tianHu };
+    }
+    return { items: [{ key: 'diHu', name: '地胡', tai: rules.diHu }], total: rules.diHu };
+  }
+
   add('base', '基本台', rules.base);
 
   const melds = hand.melds ?? [];
@@ -90,11 +99,6 @@ function scoreDecomposition(decomposition, hand, context, winningTileCode, waitC
     if (shape === 'tanki') add('danDiao', '單吊', rules.danDiao);
     else if (shape === 'penchan') add('bianZhang', '邊張', rules.bianZhang);
     else if (shape === 'kanchan') add('kanZhang', '坎張', rules.kanZhang);
-  }
-
-  if (context.isFirstTurn && context.selfDrawn) {
-    if (context.isDealer) add('tianHu', '天胡', rules.tianHu);
-    else add('diHu', '地胡', rules.diHu);
   }
 
   const gangCount = melds.filter((m) => m.type === 'ankan' || m.type === 'minkan').length;

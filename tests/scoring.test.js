@@ -183,7 +183,7 @@ test('兩面聽(兩張都能胡)不給聽牌型態獎勵', () => {
   assert.equal(tai(score.items, 'kanZhang'), 0);
 });
 
-test('天胡:莊家起手自摸胡牌', () => {
+test('天胡:直接視為總台數,不跟基本台/門清/自摸疊加', () => {
   const concealedTiles = parseHand('123456789m123p45p55s');
   const winningTile = { suit: 'p', rank: 6 };
   const score = computeScore(
@@ -193,9 +193,13 @@ test('天胡:莊家起手自摸胡牌', () => {
   );
   assert.equal(tai(score.items, 'tianHu'), 16);
   assert.equal(tai(score.items, 'diHu'), 0);
+  assert.equal(tai(score.items, 'base'), 0); // 不疊加基本台
+  assert.equal(tai(score.items, 'menQing'), 0); // 不疊加門清
+  assert.equal(tai(score.items, 'ziMo'), 0); // 不疊加自摸
+  assert.equal(score.total, 16); // 總台數就是 16,不是 16+其他項目
 });
 
-test('地胡:閒家第一輪自摸胡牌', () => {
+test('地胡:直接視為總台數,不跟基本台/門清/自摸疊加', () => {
   const concealedTiles = parseHand('123456789m123p45p55s');
   const winningTile = { suit: 'p', rank: 6 };
   const score = computeScore(
@@ -205,6 +209,8 @@ test('地胡:閒家第一輪自摸胡牌', () => {
   );
   assert.equal(tai(score.items, 'diHu'), 8);
   assert.equal(tai(score.items, 'tianHu'), 0);
+  assert.equal(tai(score.items, 'base'), 0);
+  assert.equal(score.total, 8);
 });
 
 test('槓:手牌裡有暗槓時,依槓的數量加台,且不影響門清', () => {
