@@ -92,6 +92,48 @@ test('花杠:集滿梅蘭菊竹或春夏秋冬其中一套,額外加台', () => 
   assert.equal(tai(score.items, 'huaGang'), 2);
 });
 
+test('三暗刻:剛好 3 組暗刻,另外兩組是順子', () => {
+  const concealedTiles = parseHand('111m222m333m456p78s66p'); // 缺 9s,自摸
+  const winningTile = { suit: 's', rank: 9 };
+  const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: true });
+  assert.equal(tai(score.items, 'sanAnKe'), 2);
+  assert.equal(tai(score.items, 'siAnKe'), 0);
+  assert.equal(tai(score.items, 'duiDuiHu'), 0); // 有兩組順子,不是碰碰胡
+});
+
+test('小三元:兩組龍刻 + 龍將,另外兩組是順子', () => {
+  // 中中中、發發發是刻子,白白是將眼,123m/456p 是順子,缺 9s(把 78s 補成 789s)
+  const concealedTiles = parseHand('555z666z77z123m78s456p');
+  const winningTile = { suit: 's', rank: 9 };
+  const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: true });
+  assert.equal(tai(score.items, 'xiaoSanYuan'), 4);
+  assert.equal(tai(score.items, 'daSanYuan'), 0);
+});
+
+test('大三元:中發白三組都是刻子(將眼隨意)', () => {
+  const concealedTiles = parseHand('555z666z777z11m78s456p'); // 缺 9s,自摸
+  const winningTile = { suit: 's', rank: 9 };
+  const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: true });
+  assert.equal(tai(score.items, 'daSanYuan'), 8);
+  assert.equal(tai(score.items, 'xiaoSanYuan'), 0); // 大小三元互斥,不會同時給
+});
+
+test('小四喜:三組風刻 + 風將,另外一組是順子', () => {
+  // 東南西是刻子,北北是將眼,123m 是順子,缺 9s(把 78s 補成 789s)
+  const concealedTiles = parseHand('111z222z333z44z78s123m');
+  const winningTile = { suit: 's', rank: 9 };
+  const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: true });
+  assert.equal(tai(score.items, 'xiaoSiXi'), 8);
+  assert.equal(tai(score.items, 'daSiXi'), 0);
+});
+
+test('搶槓:context.isChankan 標記時額外加台', () => {
+  const concealedTiles = parseHand('123456789m123p45p55s');
+  const winningTile = { suit: 'p', rank: 6 };
+  const score = computeScore({ concealedTiles }, winningTile, { selfDrawn: false, isChankan: true });
+  assert.equal(tai(score.items, 'qiangGang'), 1);
+});
+
 test('全求人:五組都靠吃碰而來,胡的是最後那對將眼', () => {
   const concealedTiles = parseHand('9s'); // 只剩一張孤張,靠別人打的牌配成對
   const melds = [
