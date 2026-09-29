@@ -8,14 +8,29 @@
 // effectivePartials 最多只能算到 (5 - melds) 組,因為面子只需要 5 組,多的搭子沒用。
 //
 // 內部用長度 34 的純數字陣列(而不是 Map<string,number>)記牌,
-// 純數字陣列的複製(slice)跟比對(join 當 key)比 Map 快很多,
 // 這個函式會被切牌分析大量重複呼叫(每個候選棄牌都要掃過 34 種牌),效能很重要。
+//
+// 效能優化(相對舊版):
+// 1. 原地變異 + 復原(backtracking)取代 counts.slice() 陣列複製——
+//    舊版每個遞迴分支都要複製整個 34 格陣列,新版直接在同一個陣列上改、
+//    遞迴完再改回來,省掉大量陣列配置與複製。
+// 2. 記憶化的 key 改用「增量維護的兩個數字雜湊」取代「counts.join('')」字串序列化——
+//    雜湊在每次改動 counts 時用 O(1) 增量更新(而不是每次呼叫都重新掃 34 格拼字串)。
+//    (34 格拆成兩半分別用 5 進位雜湊,是因為 5^34 超出 JS 安全整數範圍,拆兩半後
+//     每半最多 5^17 ≈ 7.6e11,遠低於 Number.MAX_SAFE_INTEGER。)
 
 import { allTileTypes, tileCode } from './tiles.js';
 
 const TILE_ORDER = allTileTypes().map(tileCode);
 const CODE_TO_INDEX = new Map(TILE_ORDER.map((code, i) => [code, i]));
 const HONOR_START = 27; // 0-8=萬, 9-17=筒, 18-26=條, 27-33=字牌
+
+// 5 進位雜湊用的權重表:每張牌最多 4 張,用 5 進位(0-4)剛好夠、不會進位互相污染。
+// 34 格拆成前 17 格(hashA)、後 17 格(hashB)兩半,避免單一雜湊超出安全整數範圍。
+const HALF = 17;
+const POW5 = new Array(HALF);
+POW5[0] = 1;
+for (let i = 1; i < HALF; i++) POW5[i] = POW5[i - 1] * 5;
 
 function seqPlus1(index) {
   if (index >= HONOR_START) return -1;
@@ -48,22 +63,35 @@ function firstActiveIndex(counts) {
  * 回傳向聽數(數字越小越好,-1 表示已經胡牌)
  */
 export function calculateShanten(concealedTiles, fixedMelds = 0) {
-  const startCounts = toCounts(concealedTiles);
+  const counts = toCounts(concealedTiles);
   const seen = new Set();
   let best = Infinity;
+
+  // 增量維護的雜湊(對應 counts 目前狀態),隨 applyDelta 同步更新。
+  let hashA = 0;
+  let hashB = 0;
+  for (let i = 0; i < 34; i++) {
+    if (counts[i] === 0) continue;
+    if (i < HALF) hashA += counts[i] * POW5[i];
+    else hashB += counts[i] * POW5[i - HALF];
+  }
+
+  function applyDelta(index, delta) {
+    counts[index] += delta;
+    if (index < HALF) hashA += delta * POW5[index];
+    else hashB += delta * POW5[index - HALF];
+  }
 
   function shantenFromState(melds, partials, hasPair) {
     const effectivePartials = Math.min(partials, 5 - melds);
     return 9 - 2 * melds - effectivePartials + (hasPair ? 0 : 1);
   }
 
-  function rec(counts, melds, partials, hasPair) {
-    // 同樣的狀態(不管怎麼繞路過來)算出來的向聽數都一樣,算過就不用再算一次
-    const key = counts.join('') + '|' + melds + '|' + partials + '|' + (hasPair ? 1 : 0);
+  function rec(melds, partials, hasPair) {
+    const key = hashA + '_' + hashB + '_' + melds + '_' + partials + '_' + (hasPair ? 1 : 0);
     if (seen.has(key)) return;
     seen.add(key);
 
-    // 5 組面子的名額已經滿了、對子也有了,剩下的牌再怎麼組都不會讓向聽數更好,不用再往下算
     if (melds + partials >= 5 && hasPair) {
       const s = shantenFromState(melds, partials, hasPair);
       if (s < best) best = s;
@@ -79,56 +107,58 @@ export function calculateShanten(concealedTiles, fixedMelds = 0) {
 
     const count = counts[index];
     const canGrow = melds + partials < 5;
-
-    if (count >= 3) {
-      const next = counts.slice();
-      next[index] -= 3;
-      rec(next, melds + 1, partials, hasPair);
-    }
-
     const i2 = seqPlus1(index);
     const i3 = seqPlus2(index);
 
+    if (count >= 3) {
+      applyDelta(index, -3);
+      rec(melds + 1, partials, hasPair);
+      applyDelta(index, 3);
+    }
+
     if (i3 !== -1 && counts[i2] >= 1 && counts[i3] >= 1) {
-      const next = counts.slice();
-      next[index]--;
-      next[i2]--;
-      next[i3]--;
-      rec(next, melds + 1, partials, hasPair);
+      applyDelta(index, -1);
+      applyDelta(i2, -1);
+      applyDelta(i3, -1);
+      rec(melds + 1, partials, hasPair);
+      applyDelta(index, 1);
+      applyDelta(i2, 1);
+      applyDelta(i3, 1);
     }
 
     if (count >= 2 && !hasPair) {
-      const next = counts.slice();
-      next[index] -= 2;
-      rec(next, melds, partials, true);
+      applyDelta(index, -2);
+      rec(melds, partials, true);
+      applyDelta(index, 2);
     }
 
     if (canGrow) {
       if (count >= 2) {
-        const next = counts.slice();
-        next[index] -= 2;
-        rec(next, melds, partials + 1, hasPair);
+        applyDelta(index, -2);
+        rec(melds, partials + 1, hasPair);
+        applyDelta(index, 2);
       }
       if (i2 !== -1 && counts[i2] >= 1) {
-        const next = counts.slice();
-        next[index]--;
-        next[i2]--;
-        rec(next, melds, partials + 1, hasPair);
+        applyDelta(index, -1);
+        applyDelta(i2, -1);
+        rec(melds, partials + 1, hasPair);
+        applyDelta(index, 1);
+        applyDelta(i2, 1);
       }
       if (i3 !== -1 && counts[i3] >= 1) {
-        const next = counts.slice();
-        next[index]--;
-        next[i3]--;
-        rec(next, melds, partials + 1, hasPair);
+        applyDelta(index, -1);
+        applyDelta(i3, -1);
+        rec(melds, partials + 1, hasPair);
+        applyDelta(index, 1);
+        applyDelta(i3, 1);
       }
     }
 
-    // 這張牌當孤張跳過,不參與任何組合
-    const next = counts.slice();
-    next[index]--;
-    rec(next, melds, partials, hasPair);
+    applyDelta(index, -1);
+    rec(melds, partials, hasPair);
+    applyDelta(index, 1);
   }
 
-  rec(startCounts, fixedMelds, 0, false);
+  rec(fixedMelds, 0, false);
   return best;
 }
