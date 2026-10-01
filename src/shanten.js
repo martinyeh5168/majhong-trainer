@@ -1,60 +1,88 @@
 // 向聽數(shanten)計算:手牌離聽牌還差幾步。
 // 0 = 已經聽牌,-1 = 已經胡了,1 = 差一步到聽牌,以此類推。
 //
-// 台灣 16 張需要「5 組面子 + 1 對將眼」,概念上跟标准 13 张麻将的
-// 「4 組 + 1 對」向聽公式一樣,只是把「4」換成「5」:
-//   向聽數 = (5*2 -1) - 2*melds - effectivePartials + (hasPair ? 0 : 1)
-// melds:已經完成的面子數;partials:還差一張就能完成的搭子(順子差一張/刻子差一張);
-// effectivePartials 最多只能算到 (5 - melds) 組,因為面子只需要 5 組,多的搭子沒用。
+// 台灣 16 張需要「5 組面子 + 1 對將眼」:
+//   向聽數 = 10 - 2*melds - min(partials, 5 - melds) - (hasPair ? 1 : 0)
+// melds:完成的面子數(含已吃碰槓);partials:搭子數(差一張成面子的兩張牌);
+// 搭子最多只算到 (5 - melds) 組,因為面子只需要 5 組,多的搭子沒用。
 //
-// 內部用長度 34 的純數字陣列(而不是 Map<string,number>)記牌,
-// 這個函式會被切牌分析大量重複呼叫(每個候選棄牌都要掃過 34 種牌),效能很重要。
-//
-// 效能優化(相對舊版):
-// 1. 原地變異 + 復原(backtracking)取代 counts.slice() 陣列複製——
-//    舊版每個遞迴分支都要複製整個 34 格陣列,新版直接在同一個陣列上改、
-//    遞迴完再改回來,省掉大量陣列配置與複製。
-// 2. 記憶化的 key 改用「增量維護的兩個數字雜湊」取代「counts.join('')」字串序列化——
-//    雜湊在每次改動 counts 時用 O(1) 增量更新(而不是每次呼叫都重新掃 34 格拼字串)。
-//    (34 格拆成兩半分別用 5 進位雜湊,是因為 5^34 超出 JS 安全整數範圍,拆兩半後
-//     每半最多 5^17 ≈ 7.6e11,遠低於 Number.MAX_SAFE_INTEGER。)
+// 演算法(分花色計算 + 快取):
+// 萬、筒、條、字牌四門之間不可能互相組成面子或搭子,所以每一門可以「各自獨立」拆解。
+// 1. 對每一門,列出所有可能的 (面子數, 搭子數, 是否用了對子) 組合,只保留不被其他組合完全壓過的。
+// 2. 每一門的結果依「該門的牌型」快取起來——同樣的一門牌型之後再出現(切牌分析時非常頻繁)直接查表。
+// 3. 最後把四門的組合交叉合併,套公式取最小值。
+// 相較於整副 34 種牌一起遞迴搜尋,搜尋空間小非常多,而且快取在所有呼叫之間共用。
 
-import { allTileTypes, tileCode } from './tiles.js';
+import { toCounts } from './handCounts.js';
 
-const TILE_ORDER = allTileTypes().map(tileCode);
-const CODE_TO_INDEX = new Map(TILE_ORDER.map((code, i) => [code, i]));
-const HONOR_START = 27; // 0-8=萬, 9-17=筒, 18-26=條, 27-33=字牌
+// 快取:key = 該門牌型的 8 進位編碼(字牌另外一組,因為字牌不能組順子)
+const suitCache = new Map();
+const honorCache = new Map();
+const CACHE_LIMIT = 300000; // 避免長時間使用後佔用太多記憶體
 
-// 5 進位雜湊用的權重表:每張牌最多 4 張,用 5 進位(0-4)剛好夠、不會進位互相污染。
-// 34 格拆成前 17 格(hashA)、後 17 格(hashB)兩半,避免單一雜湊超出安全整數範圍。
-const HALF = 17;
-const POW5 = new Array(HALF);
-POW5[0] = 1;
-for (let i = 1; i < HALF; i++) POW5[i] = POW5[i - 1] * 5;
+/**
+ * 列出單一門的所有「不被壓過」的拆法 [melds, partials, pair]。
+ * cells:該門每種牌的張數;allowSequence:數字牌 true、字牌 false
+ */
+function suitOptions(cells, allowSequence) {
+  const n = cells.length;
+  const found = new Map(); // key "m,p,pair" → [m,p,pair]
+  const seenStates = new Set();
 
-function seqPlus1(index) {
-  if (index >= HONOR_START) return -1;
-  return index % 9 === 8 ? -1 : index + 1;
-}
+  function rec(start, m, p, pair) {
+    let i = start;
+    while (i < n && cells[i] === 0) i++;
+    if (i === n) {
+      const k = m * 100 + p * 2 + pair;
+      if (!found.has(k)) found.set(k, [m, p, pair]);
+      return;
+    }
+    const stateKey = cells.join('') + '|' + i + '|' + m + '|' + p + '|' + pair;
+    if (seenStates.has(stateKey)) return;
+    seenStates.add(stateKey);
 
-function seqPlus2(index) {
-  if (index >= HONOR_START) return -1;
-  return index % 9 >= 7 ? -1 : index + 2;
-}
-
-function toCounts(tiles) {
-  const counts = new Array(34).fill(0);
-  for (const tile of tiles) {
-    counts[CODE_TO_INDEX.get(tileCode(tile))]++;
+    const c = cells[i];
+    if (c >= 3) { cells[i] -= 3; rec(i, m + 1, p, pair); cells[i] += 3; }
+    if (allowSequence && i + 2 < n && cells[i + 1] > 0 && cells[i + 2] > 0) {
+      cells[i]--; cells[i + 1]--; cells[i + 2]--;
+      rec(i, m + 1, p, pair);
+      cells[i]++; cells[i + 1]++; cells[i + 2]++;
+    }
+    if (c >= 2) {
+      cells[i] -= 2;
+      if (!pair) rec(i, m, p, 1);
+      rec(i, m, p + 1, pair);
+      cells[i] += 2;
+    }
+    if (allowSequence && i + 1 < n && cells[i + 1] > 0) {
+      cells[i]--; cells[i + 1]--; rec(i, m, p + 1, pair); cells[i]++; cells[i + 1]++;
+    }
+    if (allowSequence && i + 2 < n && cells[i + 2] > 0) {
+      cells[i]--; cells[i + 2]--; rec(i, m, p + 1, pair); cells[i]++; cells[i + 2]++;
+    }
+    cells[i]--; rec(i, m, p, pair); cells[i]++; // 當孤張跳過
   }
-  return counts;
+
+  rec(0, 0, 0, 0);
+
+  // 只保留不被壓過的組合:面子、搭子、對子都不比別人少的才有用
+  const all = [...found.values()];
+  return all.filter((a) => !all.some((b) =>
+    b !== a && b[0] >= a[0] && b[1] >= a[1] && b[2] >= a[2] &&
+    (b[0] > a[0] || b[1] > a[1] || b[2] > a[2])));
 }
 
-function firstActiveIndex(counts) {
-  for (let i = 0; i < 34; i++) {
-    if (counts[i] > 0) return i;
+function cachedOptions(counts, start, len, allowSequence) {
+  let key = 0;
+  for (let i = 0; i < len; i++) key = key * 8 + counts[start + i]; // 8 進位:就算異常輸入同牌超過 4 張也不會撞 key
+  const cache = allowSequence ? suitCache : honorCache;
+  let opts = cache.get(key);
+  if (!opts) {
+    opts = suitOptions(counts.slice(start, start + len), allowSequence);
+    if (cache.size >= CACHE_LIMIT) cache.clear();
+    cache.set(key, opts);
   }
-  return -1;
+  return opts;
 }
 
 /**
@@ -64,101 +92,26 @@ function firstActiveIndex(counts) {
  */
 export function calculateShanten(concealedTiles, fixedMelds = 0) {
   const counts = toCounts(concealedTiles);
-  const seen = new Set();
+  const groups = [
+    cachedOptions(counts, 0, 9, true),
+    cachedOptions(counts, 9, 9, true),
+    cachedOptions(counts, 18, 9, true),
+    cachedOptions(counts, 27, 7, false),
+  ];
+
   let best = Infinity;
-
-  // 增量維護的雜湊(對應 counts 目前狀態),隨 applyDelta 同步更新。
-  let hashA = 0;
-  let hashB = 0;
-  for (let i = 0; i < 34; i++) {
-    if (counts[i] === 0) continue;
-    if (i < HALF) hashA += counts[i] * POW5[i];
-    else hashB += counts[i] * POW5[i - HALF];
-  }
-
-  function applyDelta(index, delta) {
-    counts[index] += delta;
-    if (index < HALF) hashA += delta * POW5[index];
-    else hashB += delta * POW5[index - HALF];
-  }
-
-  function shantenFromState(melds, partials, hasPair) {
-    const effectivePartials = Math.min(partials, 5 - melds);
-    return 9 - 2 * melds - effectivePartials + (hasPair ? 0 : 1);
-  }
-
-  function rec(melds, partials, hasPair) {
-    const key = hashA + '_' + hashB + '_' + melds + '_' + partials + '_' + (hasPair ? 1 : 0);
-    if (seen.has(key)) return;
-    seen.add(key);
-
-    if (melds + partials >= 5 && hasPair) {
-      const s = shantenFromState(melds, partials, hasPair);
-      if (s < best) best = s;
-      return;
-    }
-
-    const index = firstActiveIndex(counts);
-    if (index === -1) {
-      const s = shantenFromState(melds, partials, hasPair);
-      if (s < best) best = s;
-      return;
-    }
-
-    const count = counts[index];
-    const canGrow = melds + partials < 5;
-    const i2 = seqPlus1(index);
-    const i3 = seqPlus2(index);
-
-    if (count >= 3) {
-      applyDelta(index, -3);
-      rec(melds + 1, partials, hasPair);
-      applyDelta(index, 3);
-    }
-
-    if (i3 !== -1 && counts[i2] >= 1 && counts[i3] >= 1) {
-      applyDelta(index, -1);
-      applyDelta(i2, -1);
-      applyDelta(i3, -1);
-      rec(melds + 1, partials, hasPair);
-      applyDelta(index, 1);
-      applyDelta(i2, 1);
-      applyDelta(i3, 1);
-    }
-
-    if (count >= 2 && !hasPair) {
-      applyDelta(index, -2);
-      rec(melds, partials, true);
-      applyDelta(index, 2);
-    }
-
-    if (canGrow) {
-      if (count >= 2) {
-        applyDelta(index, -2);
-        rec(melds, partials + 1, hasPair);
-        applyDelta(index, 2);
-      }
-      if (i2 !== -1 && counts[i2] >= 1) {
-        applyDelta(index, -1);
-        applyDelta(i2, -1);
-        rec(melds, partials + 1, hasPair);
-        applyDelta(index, 1);
-        applyDelta(i2, 1);
-      }
-      if (i3 !== -1 && counts[i3] >= 1) {
-        applyDelta(index, -1);
-        applyDelta(i3, -1);
-        rec(melds, partials + 1, hasPair);
-        applyDelta(index, 1);
-        applyDelta(i3, 1);
+  for (const a of groups[0]) {
+    for (const b of groups[1]) {
+      for (const c of groups[2]) {
+        for (const d of groups[3]) {
+          const m = fixedMelds + a[0] + b[0] + c[0] + d[0];
+          const p = a[1] + b[1] + c[1] + d[1];
+          const pair = a[2] | b[2] | c[2] | d[2];
+          const s = 10 - 2 * m - Math.min(p, 5 - m) - pair;
+          if (s < best) best = s;
+        }
       }
     }
-
-    applyDelta(index, -1);
-    rec(melds, partials, hasPair);
-    applyDelta(index, 1);
   }
-
-  rec(fixedMelds, 0, false);
-  return best;
+  return Math.max(best, -1); // 胡牌就是 -1,異常的超量手牌也不會回傳更小的值
 }
